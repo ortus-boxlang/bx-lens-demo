@@ -1,0 +1,5 @@
+<bx:script>
+	sleep( 20 );
+	writeOutput( "before abort" );
+	abort;
+</bx:script>

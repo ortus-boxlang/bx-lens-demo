@@ -1,0 +1,21 @@
+<bx:script>
+	request.pageTitle = "Timers and messages";
+	id = lensStart( "build report" );
+	sleep( 20 );
+	lensStop( id );
+	total = lensMeasure( "sum a range", () => {
+		sleep( 12 );
+		var s = 0; for ( var i = 1; i <= 100; i++ ) { s += i; } return s;
+	} );
+	lensAddMeasure( "warm up", 1, 6.5 );
+	lensMessage( "Report total is #total#", "info" );
+	lensMessage( "This is only a warning", "warn" );
+	lensMessage( "Something looked wrong", "error" );
+	lensDump( { total : total, items : [ 1, 2, 3 ], nested : { ok : true } }, "report data" );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Timers and messages</h1>
+<p>Total: #total#. Open the Timers and Messages tabs.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

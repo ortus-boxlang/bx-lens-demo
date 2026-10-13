@@ -1,0 +1,18 @@
+<bx:script>
+	request.pageTitle = "Transaction";
+	bx:transaction {
+		queryExecute( "UPDATE orders SET status = 'open' WHERE id = 10401" );
+		queryExecute( "UPDATE orders SET status = 'open' WHERE id = 10402" );
+		transactionCommit();
+	}
+	bx:transaction {
+		queryExecute( "UPDATE orders SET status = 'cancelled' WHERE id = 10403" );
+		transactionRollback();
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Transaction</h1>
+<p>One transaction committed and one rolled back. Both show on the timeline.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

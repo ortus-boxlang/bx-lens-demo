@@ -1,0 +1,2 @@
+<bx:loop from="1" to="8" index="i"><bx:output>chunk #i#
+</bx:output><bx:flush /><bx:script>sleep( 400 );</bx:script></bx:loop>

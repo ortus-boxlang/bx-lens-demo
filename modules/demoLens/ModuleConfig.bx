@@ -1,0 +1,23 @@
+/**
+ * Example of a module that contributes a Lens panel. It ships no JavaScript: it declares a panel and fills it with data.
+ */
+class {
+
+	property name="moduleRecord";
+	property name="boxRuntime";
+
+	this.version      = "1.0.0";
+	this.mapping      = "demoLens";
+	this.author       = "Ortus Solutions";
+	this.description  = "Sample module that adds a panel to BxLens";
+	this.enabled      = true;
+	this.dependencies = [];
+
+	function configure() {
+		settings = {};
+		interceptors = [
+			{ class : "interceptors.DemoLens", name : "DemoLens@demoLens", properties : {} }
+		];
+	}
+
+}

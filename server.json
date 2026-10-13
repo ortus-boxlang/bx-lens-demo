@@ -1,0 +1,16 @@
+{
+	"name" : "bx-lens-demo",
+	"app" : {
+		"cfengine" : "boxlang@be",
+		"serverHomeDirectory" : ".engine/boxlang",
+		"engineConfigFile" : "config/boxlang.commandbox.json"
+	},
+	"web" : {
+		"webroot" : "app",
+		"http" : { "port" : 8085, "host" : "127.0.0.1" },
+		"rewrites" : { "enable" : false }
+	},
+	"scripts" : {
+		"onServerInitialInstall" : "install bx-lens,bx-derby,bx-compat-cfml"
+	}
+}

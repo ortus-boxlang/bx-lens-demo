@@ -1,0 +1,31 @@
+<bx:script>
+	request.pageTitle = "CPU burn";
+	running = application.scenarios.isRunning( "cpu" );
+	// ?inline=1 spins inside this request for 8 seconds, so In flight shows a live stack in the loop
+	if ( url.keyExists( "inline" ) ) {
+		end = getTickCount() + 8000;
+		x = 0;
+		while ( getTickCount() < end ) {
+			x = ( x + 1 ) % 1000003;
+			x = x * 3 % 1000003;
+		}
+	}
+	request.lookAt = [
+		"Console > In flight (while Spin in this request runs): the request with its live stack in the loop.",
+		"Console > Threads: demo-cpu-burn-1 and 2 at the top of the CPU column.",
+		"Console > System: process CPU. With BoxLang+ the request cost shows CPU time for the spinning request.",
+		"Ask Lensy: which threads use the most CPU?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>CPU burn</h1>
+<p>Busy loops, either on background threads or inside the request that serves this page.</p>
+<p>Background state: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "cpu" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=cpu&threads=2&seconds=60&return=/runtime/cpu-spin.bxm">Start (2 threads, 60 s)</a>
+	<a class="btn" href="/runtime/cpu-spin.bxm?inline=1">Spin in this request (8 s)</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=cpu&return=/runtime/cpu-spin.bxm">Reset</a>
+</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

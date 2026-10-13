@@ -1,0 +1,5 @@
+<bx:script>
+	// Included by trycatch.bxm: throws from inside an include
+	sleep( 20 );
+	throw( type = "HarnessError", message = "Thrown inside an include, caught by the page" );
+</bx:script>

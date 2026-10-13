@@ -1,0 +1,3 @@
+<bx:script>
+	throw( type = "HarnessError", message = "This error is thrown on purpose and never caught" );
+</bx:script>

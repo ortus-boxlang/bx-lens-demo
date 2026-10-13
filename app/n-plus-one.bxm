@@ -1,0 +1,20 @@
+<bx:script>
+	request.pageTitle = "N+1";
+	orders = queryExecute( "SELECT id, customer_id, total FROM orders ORDER BY id FETCH FIRST 10 ROWS ONLY" );
+	rows = [];
+	for ( order in orders ) {
+		// The classic mistake: one query per row
+		customer = queryExecute( "SELECT name FROM customers WHERE id = :id", { id : order.customer_id } );
+		rows.append( { order : order.id, customer : customer.name } );
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>N+1 queries</h1>
+<p>#rows.len()# orders, #rows.len() + 1# queries. Lens flags the repeated statement.</p>
+<table>
+	<tr><th>Order</th><th>Customer</th></tr>
+	<bx:loop array="#rows#" item="r"><tr><td>#r.order#</td><td>#r.customer#</td></tr></bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,7 @@
+{
+	"name": "Demo Lens Panel",
+	"version": "1.0.0",
+	"slug": "demo-lens",
+	"type": "boxlang-modules",
+	"boxlang": { "moduleName": "demoLens", "minimumVersion": "1.0.0" }
+}

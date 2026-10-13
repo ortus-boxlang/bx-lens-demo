@@ -1,0 +1,7 @@
+<bx:script>
+	function inner() {
+		sleep( 20 );
+		throw( type = "HarnessError", message = "Uncaught inside a function" );
+	}
+	inner();
+</bx:script>

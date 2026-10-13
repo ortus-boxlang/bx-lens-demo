@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><bx:output>#encodeForHTML( request.pageTitle ?: "BxLens demo" )#</bx:output></title>
+<style>
+	body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 0 0 420px; color: #1d2233; background: #f6f8fc; }
+	nav { background: #303446; padding: 10px 24px; display: flex; gap: 16px; flex-wrap: wrap; }
+	nav a { color: #00dbff; text-decoration: none; font-size: 14px; }
+	nav a.console { color: #fff; font-weight: 600; margin-left: auto; }
+	main { max-width: 920px; margin: 24px auto; padding: 0 24px; }
+	table { border-collapse: collapse; width: 100%; background: #fff; }
+	th, td { padding: 8px 10px; border-bottom: 1px solid #e0e6f2; text-align: left; vertical-align: top; }
+	code { background: #e8edf6; padding: 1px 5px; border-radius: 3px; }
+	.look { background: #fff; border-left: 4px solid #00a8c6; padding: 10px 16px; margin: 24px 0; }
+	.look h2 { margin: 0 0 6px; font-size: 15px; }
+	.look ul { margin: 0; padding-left: 20px; }
+	.btn { display: inline-block; padding: 4px 12px; border-radius: 4px; background: #303446; color: #fff; text-decoration: none; font-size: 13px; border: 0; cursor: pointer; }
+	.btn.reset { background: #b3261e; }
+	.btn.go { background: #0b7285; }
+	.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #e0e6f2; }
+	.pill.on { background: #ffd8a8; color: #7a3e00; }
+	.warn { background: #fff4e5; border: 1px solid #ffd8a8; padding: 8px 14px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<nav>
+	<a href="/index.bxm">Control panel</a>
+	<a href="/orders.bxm">Orders</a><a href="/n-plus-one.bxm">N+1</a><a href="/slow.bxm">Slow query</a>
+	<a href="/caught-exception.bxm">Exceptions</a><a href="/http.bxm">HTTP</a><a href="/cache.bxm">Cache</a>
+	<a href="/concurrency/deadlock.bxm">Deadlock</a><a href="/concurrency/executors.bxm">Executors</a>
+	<a href="/runtime/pool-exhaustion.bxm">Pool</a><a href="/runtime/memory-leak.bxm">Memory</a>
+	<a href="/traffic.bxm">Traffic</a><a href="/legacy/index.cfm">CFML</a>
+	<a class="console" href="/~bxlens/index.bxm">BxLens console</a>
+</nav>
+<main>

@@ -1,0 +1,53 @@
+<bx:script>
+	request.pageTitle = "Throw";
+	kind = url.type ?: "app";
+
+	function fail( kind ) {
+		switch ( kind ) {
+			case "app":
+				throw( type = "PaymentDeclined", message = "Card declined for order #10000 + randRange( 1, 8999 )#", detail = "The issuer refused the charge" );
+			case "sql":
+				queryExecute( "SELECT nope FROM orders" );
+				break;
+			case "npe":
+				var thing = javaCast( "null", "" );
+				thing.doSomething();
+				break;
+			case "div0":
+				return 1 / 0;
+			case "key":
+				var s = { a : 1 };
+				return s.missing.value;
+			case "cast":
+				return int( "not a number" ) + 1;
+			case "file":
+				return fileRead( "/does/not/exist.txt" );
+			case "http":
+				bx:http url="http://127.0.0.1:1/nothing" timeout="2" throwOnError="true" result="r";
+				break;
+			case "secret":
+				throw( type = "ConfigError", message = "Cannot connect to jdbc:postgresql://admin:s3cretPass@db.internal:5432/orders?password=hunter2&sslmode=require" );
+			default:
+				throw( type = "UnknownKind", message = "No error kind named #kind#" );
+		}
+	}
+
+	if ( url.keyExists( "caught" ) ) {
+		message = "";
+		try {
+			fail( kind );
+		} catch ( any e ) {
+			lensException( e );
+			message = e.message;
+		}
+	} else {
+		fail( kind );
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Caught #encodeForHTML( kind )#</h1>
+<p>#encodeForHTML( message )#</p>
+<p><a href="/errors/index.bxm">Back to the catalog</a></p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,17 @@
+<bx:script>
+	request.pageTitle = "Functions";
+	function fib( n ) {
+		if ( n < 2 ) { return n; }
+		return fib( n - 1 ) + fib( n - 2 );
+	}
+	function report() {
+		return { a : fib( 10 ), b : fib( 8 ) };
+	}
+	r = report();
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Functions</h1>
+<p>fib(10) = #r.a#, fib(8) = #r.b#. The functions collector is on in this harness.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,344 @@
+/**
+ * The stateful scenarios of the demo. Each one starts background work (threads, held connections, held memory) that BxLens can see,
+ * and each one can be reset, so a presenter can run the same story again. Work in background threads checks a token for its scenario
+ * and stops when the token changes, which is how reset works.
+ *
+ * Scenario ids: deadlock, contention, executors, pool, memory, gc, threads, cpu
+ */
+class singleton {
+
+	variables.tokens  = {};
+	variables.threads = {};
+	variables.started = {};
+	variables.held    = [];
+	variables.futures = [];
+	variables.lock    = createObject( "java", "java.util.concurrent.locks.ReentrantLock" ).init();
+
+	// ---------------------------------------------------------------- catalog
+
+	/** What the control panel lists: stateful scenarios first. */
+	function stateful() {
+		return [
+			{
+				id : "deadlock", title : "Deadlock", group : "Concurrency", page : "/concurrency/deadlock.bxm",
+				what : "Two threads take two locks in opposite order and wait for each other forever.",
+				look : "Console > System (deadlock banner), Threads, Overview issues. Ask Lensy: are there any deadlocks?"
+			},
+			{
+				id : "contention", title : "Lock contention", group : "Concurrency", page : "/concurrency/lock-contention.bxm",
+				what : "One thread holds a named lock for a long time while five others and your requests wait for it.",
+				look : "Console > Threads (blocked), In flight, Errors (lock timeout). Ask Lensy: which threads are blocked?"
+			},
+			{
+				id : "executors", title : "Saturated executor", group : "Executors", page : "/concurrency/executors.bxm",
+				what : "Queues slow tasks on the two thread demo-pool until the queue backs up.",
+				look : "Console > Executors (health notes, queue, 60 second chart). Ask Lensy for a pool size recommendation."
+			},
+			{
+				id : "pool", title : "Connection pool exhaustion", group : "Datasources", page : "/runtime/pool-exhaustion.bxm",
+				what : "Holds all 5 connections of the demo datasource in open transactions, so the next query waits and times out.",
+				look : "Console > Datasources (active, waiting, timeouts), Errors, Queries failures."
+			},
+			{
+				id : "memory", title : "Memory growth", group : "Memory and CPU", page : "/runtime/memory-leak.bxm",
+				what : "Keeps byte arrays in a static list, so the heap grows and survives garbage collection.",
+				look : "Console > System (heap, memory pools, GC). Ask Lensy about garbage collection pressure."
+			},
+			{
+				id : "gc", title : "GC pressure", group : "Memory and CPU", page : "/runtime/gc-pressure.bxm",
+				what : "Allocates and drops large arrays as fast as it can, so the collector runs constantly.",
+				look : "Console > System (GC count and time, CPU). Ask Lensy about garbage collection pressure."
+			},
+			{
+				id : "threads", title : "Thread leak", group : "Memory and CPU", page : "/runtime/thread-leak.bxm",
+				what : "Starts threads that never finish.",
+				look : "Console > Threads (count grows, names demo-leak-N), System."
+			},
+			{
+				id : "cpu", title : "CPU burn", group : "Memory and CPU", page : "/runtime/cpu-spin.bxm",
+				what : "Busy loops on several threads, and a page that spins inside a request.",
+				look : "Console > System (CPU), Threads (CPU column), In flight (live stack of the spinning request)."
+			}
+		];
+	}
+
+	/** Running state of every stateful scenario, for the control panel. */
+	function status() {
+		var out = {};
+		for ( var s in stateful() ) {
+			out[ s.id ] = { running : isRunning( s.id ), detail : detail( s.id ) };
+		}
+		return out;
+	}
+
+	function isRunning( required string id ) {
+		if ( id == "memory" ) {
+			return variables.held.len() > 0;
+		}
+		if ( id == "executors" ) {
+			return variables.futures.filter( ( f ) => !f.isDone() ).len() > 0;
+		}
+		return aliveThreads( id ) > 0;
+	}
+
+	function detail( required string id ) {
+		if ( id == "memory" ) {
+			return variables.held.len() & " MB held";
+		}
+		if ( id == "executors" ) {
+			var open = variables.futures.filter( ( f ) => !f.isDone() ).len();
+			return open & " task" & ( open == 1 ? "" : "s" ) & " not finished";
+		}
+		var n = aliveThreads( id );
+		return n & " thread" & ( n == 1 ? "" : "s" ) & " alive";
+	}
+
+	// ---------------------------------------------------------------- actions
+
+	function start( required string id, struct args = {} ) {
+		reset( id );
+		switch ( id ) {
+			case "deadlock":
+				startDeadlock( args.kind ?: "java" );
+				break;
+			case "contention":
+				startContention();
+				break;
+			case "executors":
+				startExecutors( val( args.tasks ?: 10 ), val( args.seconds ?: 20 ) );
+				break;
+			case "pool":
+				startPool( val( args.connections ?: 5 ) );
+				break;
+			case "memory":
+				leakMemory( val( args.mb ?: 64 ) );
+				break;
+			case "gc":
+				startGc( val( args.seconds ?: 60 ) );
+				break;
+			case "threads":
+				startThreadLeak( val( args.count ?: 25 ) );
+				break;
+			case "cpu":
+				startCpu( val( args.threads ?: 2 ), val( args.seconds ?: 60 ) );
+				break;
+			default:
+				throw( type = "UnknownScenario", message = "No scenario named #id#" );
+		}
+		variables.started[ id ] = now();
+		return status()[ id ];
+	}
+
+	function reset( required string id ) {
+		variables.tokens[ id ] = ( variables.tokens[ id ] ?: 0 ) + 1;
+		for ( var t in ( variables.threads[ id ] ?: [] ) ) {
+			t.interrupt();
+		}
+		variables.threads[ id ] = [];
+		if ( id == "memory" ) {
+			variables.held = [];
+			createObject( "java", "java.lang.System" ).gc();
+		}
+		if ( id == "executors" ) {
+			variables.futures = [];
+		}
+		variables.started.delete( id );
+	}
+
+	function resetAll() {
+		for ( var s in stateful() ) {
+			reset( s.id );
+		}
+	}
+
+	// ---------------------------------------------------------------- concurrency
+
+	/**
+	 * kind "java": two ReentrantLocks taken in opposite order. Reset interrupts the threads and the deadlock ends at once.
+	 * kind "lock": two named bx:lock blocks taken in opposite order, like cflock in a CFML app. A named lock cannot be interrupted, so the
+	 *              deadlock ends when the inner lock times out after 90 seconds.
+	 */
+	private function startDeadlock( required string kind ) {
+		if ( kind == "lock" ) {
+			spawn( "deadlock", "demo-deadlock-A", ( tok ) => {
+				try {
+					bx:lock name="demo-orders" timeout=0 {
+						sleep( 400 );
+						bx:lock name="demo-customers" timeout=90 { sleep( 10 ); }
+					}
+				} catch ( any e ) {}
+			} );
+			spawn( "deadlock", "demo-deadlock-B", ( tok ) => {
+				try {
+					bx:lock name="demo-customers" timeout=0 {
+						sleep( 400 );
+						bx:lock name="demo-orders" timeout=90 { sleep( 10 ); }
+					}
+				} catch ( any e ) {}
+			} );
+			return;
+		}
+		var a = createObject( "java", "java.util.concurrent.locks.ReentrantLock" ).init();
+		var b = createObject( "java", "java.util.concurrent.locks.ReentrantLock" ).init();
+		var crossed = ( first, second ) => {
+			try {
+				first.lockInterruptibly();
+				sleep( 400 );
+				second.lockInterruptibly();
+			} catch ( any e ) {
+				// reset interrupts the thread
+			} finally {
+				if ( first.isHeldByCurrentThread() ) { first.unlock(); }
+				if ( second.isHeldByCurrentThread() ) { second.unlock(); }
+			}
+		};
+		spawn( "deadlock", "demo-deadlock-A", ( tok ) => crossed( a, b ) );
+		spawn( "deadlock", "demo-deadlock-B", ( tok ) => crossed( b, a ) );
+	}
+
+	/** One holder keeps the named lock "demo-report" until reset; five waiters queue behind it. */
+	private function startContention() {
+		spawn( "contention", "demo-lock-holder", ( tok ) => {
+			bx:lock name="demo-report" timeout=0 {
+				while ( current( "contention" ) == tok ) { sleep( 200 ); }
+			}
+		} );
+		sleep( 300 );
+		for ( var i = 1; i <= 5; i++ ) {
+			spawn( "contention", "demo-lock-waiter-#i#", ( tok ) => {
+				try {
+					bx:lock name="demo-report" timeout=0 {
+						sleep( 50 );
+					}
+				} catch ( any e ) {}
+			} );
+		}
+	}
+
+	// ---------------------------------------------------------------- executors
+
+	/** Queues `tasks` tasks of `seconds` seconds on the 2 thread demo-pool, so most of them wait in the queue. */
+	private function startExecutors( required numeric tasks, required numeric seconds ) {
+		var tok = current( "executors" );
+		var self = this;
+		for ( var i = 1; i <= tasks; i++ ) {
+			variables.futures.append( asyncRun( () => {
+				var end = getTickCount() + seconds * 1000;
+				while ( getTickCount() < end && self.current( "executors" ) == tok ) { sleep( 200 ); }
+				return 1;
+			}, "demo-pool" ) );
+		}
+	}
+
+	// ---------------------------------------------------------------- datasources
+
+	/**
+	 * Holds `connections` connections of the demo datasource, the way code that forgets to close a connection would. The pool has 5,
+	 * so while they are held every other query waits 2 seconds and then fails. Reset closes them.
+	 */
+	private function startPool( required numeric connections ) {
+		var ds = demoDatasource();
+		for ( var i = 1; i <= connections; i++ ) {
+			spawn( "pool", "demo-conn-holder-#i#", ( tok ) => {
+				var conn = ds.getConnection();
+				try {
+					while ( current( "pool" ) == tok ) { sleep( 200 ); }
+				} finally {
+					conn.close();
+				}
+			} );
+		}
+	}
+
+	/** The pooled datasource of this application, from the runtime. Application datasources are registered under a generated key. */
+	private function demoDatasource() {
+		var Key = createObject( "java", "ortus.boxlang.runtime.scopes.Key" );
+		var all = createObject( "java", "ortus.boxlang.runtime.BoxRuntime" ).getInstance().getDataSourceService()
+			.getByApplicationName( Key.of( "bxLensDemo" ) );
+		for ( var k in all.keySet() ) {
+			if ( k.getName().find( "_demo_" ) ) {
+				return all.get( k );
+			}
+		}
+		throw( type = "DatasourceNotFound", message = "The demo datasource is not registered yet. Open any page that runs a query first." );
+	}
+
+	// ---------------------------------------------------------------- memory and CPU
+
+	/**
+	 * Adds `mb` megabytes to the list kept for good. Refuses to go past 40 percent of the maximum heap, so the demo
+	 * shows pressure without taking the JVM down.
+	 */
+	function leakMemory( required numeric mb ) {
+		var rt = createObject( "java", "java.lang.Runtime" ).getRuntime();
+		var capMb = int( rt.maxMemory() / 1048576 * 0.4 );
+		var bb = createObject( "java", "java.nio.ByteBuffer" );
+		for ( var i = 1; i <= mb && variables.held.len() < capMb; i++ ) {
+			variables.held.append( bb.allocate( 1048576 ) );
+		}
+		return { heldMb : variables.held.len(), capMb : capMb };
+	}
+
+	function heldMb() {
+		return variables.held.len();
+	}
+
+	private function startGc( required numeric seconds ) {
+		spawn( "gc", "demo-gc-churn", ( tok ) => {
+			var bb = createObject( "java", "java.nio.ByteBuffer" );
+			var end = getTickCount() + seconds * 1000;
+			var junk = 0;
+			while ( getTickCount() < end && current( "gc" ) == tok ) {
+				junk = bb.allocate( 8 * 1048576 );
+			}
+		} );
+	}
+
+	private function startThreadLeak( required numeric count ) {
+		for ( var i = 1; i <= count; i++ ) {
+			spawn( "threads", "demo-leak-#i#", ( tok ) => {
+				while ( current( "threads" ) == tok ) { sleep( 1000 ); }
+			} );
+		}
+	}
+
+	private function startCpu( required numeric threads, required numeric seconds ) {
+		for ( var i = 1; i <= threads; i++ ) {
+			spawn( "cpu", "demo-cpu-burn-#i#", ( tok ) => {
+				var end = getTickCount() + seconds * 1000;
+				var x = 0;
+				while ( getTickCount() < end && current( "cpu" ) == tok ) {
+					x = ( x + 1 ) % 1000003;
+					x = x * 3 % 1000003;
+				}
+			} );
+		}
+	}
+
+	// ---------------------------------------------------------------- plumbing
+
+	function current( required string id ) {
+		return variables.tokens[ id ] ?: 0;
+	}
+
+	private numeric function aliveThreads( required string id ) {
+		return ( variables.threads[ id ] ?: [] ).filter( ( t ) => t.isAlive() ).len();
+	}
+
+	/** Starts a named daemon Java thread that is handed the token of its scenario. */
+	private function spawn( required string id, required string name, required function body ) {
+		var tok = current( id );
+		var t = createObject( "java", "java.lang.Thread" ).init( () => {
+			try {
+				body( tok );
+			} catch ( any e ) {
+				writeLog( text = "demo scenario #id# thread #name# ended: #e.message#", type = "warning", log = "demo" );
+			}
+		}, name );
+		t.setDaemon( true );
+		t.start();
+		variables.threads[ id ] = ( variables.threads[ id ] ?: [] ).append( t );
+		return t;
+	}
+
+}

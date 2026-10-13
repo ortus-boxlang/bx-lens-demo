@@ -1,0 +1,16 @@
+<bx:script>
+	request.pageTitle = "Escaping";
+	lensMessage( "<img src=x onerror=window.__lensPwned=1>", "warn" );
+	lensDump( { html : "<script>window.__lensPwned=2</script>" }, "</script><script>window.__lensPwned=3</script>" );
+	try {
+		queryExecute( "SELECT '<img src=x onerror=window.__lensPwned=4>' AS probe FROM numbers FETCH FIRST 1 ROWS ONLY" );
+	} catch ( any e ) {
+		lensException( e );
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Escaping</h1>
+<p>Markup sent to Lens must show as text and never run.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

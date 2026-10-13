@@ -1,0 +1,53 @@
+/**
+ * Scheduled tasks for the demo, one for each state the BxLens Tasks page can show: healthy, failing, slow, overlapping and paused.
+ */
+class {
+
+	property name="scheduler";
+
+	function configure() {
+		scheduler.setSchedulerName( "demoScheduler" );
+
+		// Healthy: runs a query every 30 seconds and finishes fast
+		scheduler.task( "refresh-stats" )
+			.call( () => {
+				return queryExecute( "SELECT COUNT(*) AS n FROM orders", {}, { datasource : "demo" } ).n;
+			} )
+			.every( 30, "seconds" );
+
+		// Failing: throws on every run, so Tasks shows the failure count, the error and the stack
+		scheduler.task( "sync-prices" )
+			.call( () => {
+				throw( type = "IntegrationError", message = "Connection refused: api.prices.test:443" );
+			} )
+			.every( 20, "seconds" )
+			.onFailure( ( task, exception ) => {
+				writeLog( text = "sync-prices failed: #exception.message#", type = "error", log = "demo" );
+			} );
+
+		// Slow: takes 12 seconds every 30
+		scheduler.task( "nightly-report" )
+			.call( () => {
+				sleep( 12000 );
+				return "report built";
+			} )
+			.every( 30, "seconds" );
+
+		// Overlapping: takes longer (25 s) than its interval (10 s), so runs pile up
+		scheduler.task( "export-orders" )
+			.call( () => {
+				sleep( 25000 );
+				return "exported";
+			} )
+			.every( 10, "seconds" );
+
+		// Paused: defined but disabled, so it never runs. With BoxLang+ you can resume it from the console
+		scheduler.task( "warm-cache" )
+			.call( () => {
+				return "warmed";
+			} )
+			.every( 1, "minutes" )
+			.disable();
+	}
+
+}

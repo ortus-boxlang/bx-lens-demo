@@ -1,0 +1,5 @@
+.cache/
+.run*/
+derby.log
+logs/
+drop/*.zip

@@ -1,0 +1,15 @@
+<bx:script>
+	request.pageTitle = "Form";
+	posted = form.keyExists( "email" );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Form</h1>
+<form method="post" action="/forms.bxm" id="login">
+	<p><label>Email <input name="email" value="dev@example.com"></label></p>
+	<p><label>Password <input name="password" type="password" value="hunter2"></label></p>
+	<p><button type="submit">Sign in</button></p>
+</form>
+<bx:if posted><p>Form received. The password never reaches the Lens page.</p></bx:if>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

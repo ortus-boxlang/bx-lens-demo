@@ -1,0 +1,23 @@
+<bx:script>
+	request.pageTitle = "Scheduled tasks";
+	request.lookAt = [
+		"Console > Tasks: refresh-stats (healthy), sync-prices (failing with its error and stack), nightly-report (slow), export-orders (overlapping), warm-cache (paused).",
+		"With BoxLang+: Run now, pause, resume and reload from the console.",
+		"Console > Executors: the scheduler executor and the tasks bound to it.",
+		"Ask Lensy: which scheduled tasks are failing?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Scheduled tasks</h1>
+<p>The scheduler <code>demoScheduler</code> starts with the application and runs these tasks. They are defined in <code>app/schedulers/DemoScheduler.bx</code>.</p>
+<table>
+	<tr><th>Task</th><th>Every</th><th>Behaviour</th></tr>
+	<tr><td>refresh-stats</td><td>30 s</td><td>Healthy. Runs a query and finishes fast.</td></tr>
+	<tr><td>sync-prices</td><td>20 s</td><td>Failing. Throws an IntegrationError every run.</td></tr>
+	<tr><td>nightly-report</td><td>30 s</td><td>Slow. Takes 12 seconds.</td></tr>
+	<tr><td>export-orders</td><td>10 s</td><td>Overlapping. Takes 25 seconds, longer than its interval.</td></tr>
+	<tr><td>warm-cache</td><td>1 min</td><td>Paused. Never runs.</td></tr>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,23 @@
+<bx:script>
+	request.pageTitle = "Extend";
+	lensPanel( "harness", "Harness", "table" )
+		.columns( [ "Feature", "Source", "Count" ] )
+		.rows( [
+			[ "Custom panel", "application code", 1 ],
+			[ "Panel from a module", "demoLens module", 1 ],
+			[ "Tier 1 renderers", "table, kv, tree, spans, messages, json, text", 7 ]
+		] )
+		.badge( 3, "none" )
+		.order( 95 );
+	lensPanel( "harness-spans", "Phases" )
+		.spans( [
+			{ label : "warm up", start : 0.5, dur : 1.5, type : "custom" },
+			{ label : "render", start : 2.5, dur : 2, type : "custom" }
+		] );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Extend Lens</h1>
+<p>This page adds a Harness panel and a Phases panel from application code. The demoLens module adds a third panel on every page.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,21 @@
+<bx:script>
+	request.pageTitle = "Cache";
+	c = cache();
+	c.set( "harness.a", "alpha" );
+	c.set( "harness.b", "beta" );
+	c.set( "harness.c", "gamma" );
+	hits = 0;
+	for ( key in [ "harness.a", "harness.b", "harness.c", "harness.a", "harness.b" ] ) {
+		if ( c.get( key ).isPresent() ) { hits++; }
+	}
+	misses = 0;
+	for ( key in [ "harness.x", "harness.y", "harness.z" ] ) {
+		if ( !c.get( key ).isPresent() ) { misses++; }
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Cache</h1>
+<p>#hits# reads found a value and #misses# did not. Open the Cache tab to see the default cache before and after this request.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

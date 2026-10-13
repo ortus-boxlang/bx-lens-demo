@@ -1,0 +1,5 @@
+<bx:script>
+	// Never ends within request.maxMinutes: the watchdog finishes it as unfinished
+	sleep( 80000 );
+	writeOutput( "late" );
+</bx:script>

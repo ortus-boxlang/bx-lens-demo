@@ -1,0 +1,53 @@
+<bx:script>
+	request.pageTitle = "Traffic generator";
+	request.lookAt = [
+		"Console > Overview: request rate, error rate, p95.",
+		"Console > Reports: p50, p95, p99, status classes, busiest and slowest URLs, the minute series.",
+		"Console > Requests, Errors, Queries: filled with a realistic mix.",
+		"Free keeps the last 25 requests. BoxLang+ keeps more and saves reports to disk."
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Traffic generator</h1>
+<p>Fires a mix of requests from your browser, a few at a time: mostly healthy pages, some slow, some N+1, some 404s and 500s.</p>
+<p>
+	<label>Requests <input id="count" type="number" value="100" min="10" max="2000" style="width:80px"></label>
+	<label>At once <input id="par" type="number" value="4" min="1" max="16" style="width:60px"></label>
+	<button class="btn go" id="go">Start</button>
+	<button class="btn reset" id="stop">Stop</button>
+</p>
+<p id="out">Idle.</p>
+</bx:output>
+<script>
+	// Weighted mix of paths. The error paths return 500 on purpose.
+	var mix = [
+		["/orders.bxm", 40], ["/api/orders.json.bxm", 15], ["/api/rates.json.bxm", 10], ["/cache.bxm", 8], ["/n-plus-one.bxm", 8],
+		["/slow.bxm", 5], ["/query-error.bxm", 3], ["/missing-page.bxm", 3], ["/errors/throw.bxm?type=app", 4],
+		["/errors/throw.bxm?type=sql", 2], ["/errors/throw.bxm?type=npe", 2]
+	];
+	var total = mix.reduce(function (a, m) { return a + m[1]; }, 0);
+	function pick() {
+		var r = Math.random() * total;
+		for (var i = 0; i < mix.length; i++) { r -= mix[i][1]; if (r <= 0) return mix[i][0]; }
+		return mix[0][0];
+	}
+	var running = false, sent = 0, done = 0, bad = 0;
+	function out() { document.getElementById("out").textContent = "Sent " + sent + ", finished " + done + ", status 4xx/5xx " + bad + (running ? "" : ". Stopped."); }
+	function worker(n) {
+		if (!running || sent >= n) { return Promise.resolve(); }
+		sent++;
+		return fetch(pick(), { credentials: "same-origin" })
+			.then(function (r) { done++; if (r.status >= 400) bad++; })
+			.catch(function () { done++; bad++; })
+			.then(function () { out(); return worker(n); });
+	}
+	document.getElementById("go").onclick = function () {
+		var n = parseInt(document.getElementById("count").value, 10), p = parseInt(document.getElementById("par").value, 10);
+		running = true; sent = 0; done = 0; bad = 0; out();
+		var ws = []; for (var i = 0; i < p; i++) ws.push(worker(n));
+		Promise.all(ws).then(function () { running = false; out(); });
+	};
+	document.getElementById("stop").onclick = function () { running = false; out(); };
+</script>
+<bx:include template="/includes/footer.bxm" />

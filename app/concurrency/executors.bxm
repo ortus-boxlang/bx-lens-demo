@@ -1,0 +1,36 @@
+<bx:script>
+	request.pageTitle = "Executors";
+	scn = application.scenarios;
+	running = scn.isRunning( "executors" );
+	// ?light=1 puts a little steady work on demo-workers so a healthy pool exists to compare with
+	if ( url.keyExists( "light" ) ) {
+		for ( i = 1; i <= 3; i++ ) {
+			asyncRun( () => { sleep( 4000 ); return 1; }, "demo-workers" );
+		}
+	}
+	// ?burst=1 spreads many short tasks over a cached pool, which grows its thread count
+	if ( url.keyExists( "burst" ) ) {
+		for ( i = 1; i <= 40; i++ ) {
+			asyncRun( () => { sleep( 5000 ); return 1; }, "demo-background" );
+		}
+	}
+	request.lookAt = [
+		"Console > Executors: demo-pool shows 2 of 2 threads busy and a growing queue, with health notes against the thresholds.",
+		"Console > Executors: demo-workers (fixed, 8) stays healthy after Light load. demo-background (cached) grows its thread count after Burst.",
+		"Ask Lensy: how are the executors doing? What pool size should demo-pool have?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Executors</h1>
+<p>The demo defines three executors in <code>config/boxlang.json</code>: <code>demo-pool</code> (fixed, 2 threads), <code>demo-workers</code> (fixed, 8) and <code>demo-background</code> (cached).</p>
+<p>State of demo-pool: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "executors" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=executors&tasks=10&seconds=20&return=/concurrency/executors.bxm">Saturate demo-pool (10 tasks x 20 s)</a>
+	<a class="btn" href="/concurrency/executors.bxm?light=1">Light load on demo-workers</a>
+	<a class="btn" href="/concurrency/executors.bxm?burst=1">Burst on demo-background</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=executors&return=/concurrency/executors.bxm">Reset</a>
+</p>
+<p><small>Light load and Burst tasks end by themselves after a few seconds. Reset only stops the demo-pool tasks.</small></p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

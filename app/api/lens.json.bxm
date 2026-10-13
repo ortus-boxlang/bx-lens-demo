@@ -1,0 +1,12 @@
+<bx:content type="application/json" /><bx:script>
+	// The Lens data BIFs, as JSON, so tests and demos can read them
+	writeOutput( jsonSerialize( {
+		report : lensReport(),
+		errors : lensErrors( 5 ),
+		queries : lensQueries( 3, "total" ),
+		inflight : lensInflight(),
+		license : lensLicense(),
+		diagnostics : lensDiagnostics(),
+		server : lensServer()
+	} ) );
+</bx:script>
