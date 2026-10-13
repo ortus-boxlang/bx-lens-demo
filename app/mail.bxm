@@ -1,0 +1,47 @@
+<bx:script>
+	request.pageTitle = "Mail";
+	scenarios = [
+		{ id : "text", what : "Plain text message" },
+		{ id : "html", what : "HTML with a cc" },
+		{ id : "hostile", what : "HTML with a script and a tracking pixel. The preview must not run or load them" },
+		{ id : "multipart", what : "Text and HTML parts" },
+		{ id : "inline", what : "Inline image through a cid" },
+		{ id : "attach", what : "Attachment and a bcc" },
+		{ id : "fail", what : "The server refuses the recipient (550)" },
+		{ id : "slow", what : "The server waits 2 seconds" },
+		{ id : "spool", what : "Spooled, sent later by the spool task" },
+		{ id : "bounce", what : "Spooled, then refused: ends in the bounced list" },
+		{ id : "many&n=25", what : "25 messages in a loop" }
+	];
+	request.lookAt = [
+		"Console > Mail: sent and failed counters, the message list, each message's delivery steps, servers, the spool and its bounces.",
+		"With BoxLang+: the message viewer (preview is locked and sandboxed) and the queue actions.",
+		"The failover button sends through an app whose first SMTP server is down, so the delivery steps show the failed first attempt and the second server taking over.",
+		"Needs a bx-mail release that announces the onMail events. Until it ships, the Mail page stays empty even though the messages are sent."
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Mail</h1>
+<p>Sends mail with <code>bx:mail</code> to a small SMTP sink that <code>start.sh</code> runs on port 2525. Nothing leaves your machine, and the sink keeps messages in <code>.run/inbox.log</code>.</p>
+<table>
+	<tr><th>Scenario</th><th></th></tr>
+	<bx:loop array="#scenarios#" item="s">
+		<tr><td>#encodeForHTML( s.what )#</td><td><button class="btn go" data-url="/mail/send.bxm?scenario=#s.id#">Send</button></td></tr>
+	</bx:loop>
+	<tr><td>Failover: the first SMTP server is down</td><td><button class="btn go" data-url="/mail/failover/send.bxm">Send</button></td></tr>
+</table>
+<p id="result">Nothing sent yet.</p>
+</bx:output>
+<script>
+	document.querySelectorAll("button[data-url]").forEach(function (b) {
+		b.onclick = function () {
+			document.getElementById("result").textContent = "Sending...";
+			fetch(b.dataset.url, { credentials: "same-origin" })
+				.then(function (r) { return r.text(); })
+				.then(function (t) { document.getElementById("result").textContent = t; })
+				.catch(function (e) { document.getElementById("result").textContent = "Failed: " + e; });
+		};
+	});
+</script>
+<bx:include template="/includes/footer.bxm" />

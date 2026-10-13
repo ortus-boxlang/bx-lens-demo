@@ -21,6 +21,11 @@ RUN="${RUN_DIR:-$HERE/.run}"
 DL="https://downloads.ortussolutions.com/ortussolutions"
 COMPAT="${BX_COMPAT_VERSION:-1.40.0}"
 PLUS_VERSION="${BX_PLUS_VERSION:-1.1.3}"
+# bx-orm 1.7.2 or later announces the events BxLens listens to. The snapshot is the bleeding edge build.
+ORM_VERSION="${BX_ORM_VERSION:-1.7.2-snapshot}"
+# BxLens listens to the onMail events of bx-mail. No release announces them yet: until one does, the Mail page stays empty. BX_MAIL_ZIP=/path/bx-mail.zip uses a build that has them.
+MAIL_VERSION="${BX_MAIL_VERSION:-1.4.15}"
+SMTP_PORT="${MOCK_SMTP_PORT:-2525}"
 
 mkdir -p "$CACHE" "$RUN"
 fetch() { [ -s "$CACHE/$2" ] || { echo "+ downloading $2"; curl -fsSL -o "$CACHE/$2" "$1"; }; }
@@ -30,15 +35,19 @@ fetch "$DL/boxlang-runtimes/boxlang-web-support/$VERSION/boxlang-web-support-$VE
 fetch "$DL/boxlang-modules/bx-derby/1.0.0/bx-derby-1.0.0.zip" "bx-derby.zip"
 fetch "$DL/boxlang-modules/bx-compat-cfml/$COMPAT/bx-compat-cfml-$COMPAT.zip" "bx-compat-cfml-$COMPAT.zip"
 fetch "$DL/boxlang-modules/bx-plus/$PLUS_VERSION/bx-plus-$PLUS_VERSION.zip" "bx-plus-$PLUS_VERSION.zip"
+fetch "$DL/boxlang-modules/bx-orm/$ORM_VERSION/bx-orm-$ORM_VERSION.zip" "bx-orm-$ORM_VERSION.zip"
+[ -n "${BX_MAIL_ZIP:-}" ] || fetch "$DL/boxlang-modules/bx-mail/$MAIL_VERSION/bx-mail-$MAIL_VERSION.zip" "bx-mail-$MAIL_VERSION.zip"
 
 # The BoxLang home keeps its license and logs between starts. Modules and settings are refreshed every time.
 HOME_DIR="$RUN/home"
 mkdir -p "$HOME_DIR/config" "$HOME_DIR/modules"
-for m in derby compat bx-plus bxLens demoLens; do rm -rf "$HOME_DIR/modules/$m"; done
-mkdir -p "$HOME_DIR/modules/derby" "$HOME_DIR/modules/compat" "$HOME_DIR/modules/bx-plus" "$HOME_DIR/modules/bxLens"
+for m in derby compat bx-plus bxorm mail bxLens demoLens; do rm -rf "$HOME_DIR/modules/$m"; done
+mkdir -p "$HOME_DIR/modules/derby" "$HOME_DIR/modules/compat" "$HOME_DIR/modules/bx-plus" "$HOME_DIR/modules/bxorm" "$HOME_DIR/modules/mail" "$HOME_DIR/modules/bxLens"
 unzip -q -o "$CACHE/bx-derby.zip" -d "$HOME_DIR/modules/derby"
 unzip -q -o "$CACHE/bx-compat-cfml-$COMPAT.zip" -d "$HOME_DIR/modules/compat"
 unzip -q -o "$CACHE/bx-plus-$PLUS_VERSION.zip" -d "$HOME_DIR/modules/bx-plus"
+unzip -q -o "$CACHE/bx-orm-$ORM_VERSION.zip" -d "$HOME_DIR/modules/bxorm"
+unzip -q -o "${BX_MAIL_ZIP:-$CACHE/bx-mail-$MAIL_VERSION.zip}" -d "$HOME_DIR/modules/mail"
 cp -R "$HERE/modules/demoLens" "$HOME_DIR/modules/demoLens"
 
 # bx-lens: a zip you give, or the released module
@@ -58,7 +67,7 @@ OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2}"
 ACCESS="${LENS_ACCESS:-\"local\"}"
 cp "$HERE/config/boxlang.json" "$HOME_DIR/config/boxlang.json"
-sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@LENS_LICENSE@|${LENS_LICENSE:-}|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|" "$HOME_DIR/config/boxlang.json"
+sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_LICENSE@|${LENS_LICENSE:-}|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|" "$HOME_DIR/config/boxlang.json"
 
 export BOXLANG_HOME="$HOME_DIR"
 CP="$CACHE/boxlang-$VERSION.jar:$CACHE/miniserver-$VERSION.jar:$CACHE/web-support-$VERSION.jar"
@@ -70,7 +79,14 @@ if [ "${1:-}" = "activate" ]; then
 	java -jar "$CACHE/boxlang-$VERSION.jar" module:plus info
 fi
 
+# The SMTP sink for the Mail page: accepts every message, refuses addresses with "reject", delays addresses with "slow"
+export MOCK_SMTP_PORT="$SMTP_PORT" MOCK_SMTP_INBOX="$RUN/inbox.log"
+: > "$MOCK_SMTP_INBOX"
+java -jar "$CACHE/boxlang-$VERSION.jar" "$HERE/mock-smtp/smtp.bxs" > "$RUN/smtp.log" 2>&1 &
+SMTP_PID=$!
+trap 'kill $SMTP_PID 2>/dev/null || true' EXIT INT TERM
+
 echo "+ demo on http://localhost:$PORT (BoxLang $VERSION). Console: http://localhost:$PORT/~bxlens/index.bxm  password: lens-demo"
 # Lets /~bxlens/ reach BoxLang on MiniServer: the default pass predicate plus the console path
 export BOXLANG_PASS_PREDICATE='regex( '"'"'^(/.+?\.cfml|/.+?\.cf[cms]|.+?\.bx[ms]{0,1})(/.*)?$'"'"' ) or regex( '"'"'^/~bxlens/?$'"'"' )'
-exec java ${JAVA_OPTS:-} -cp "$CP" ortus.boxlang.web.MiniServer --webroot "$HERE/app" --host "$HOST" --port "$PORT"
+java ${JAVA_OPTS:-} -cp "$CP" ortus.boxlang.web.MiniServer --webroot "$HERE/app" --host "$HOST" --port "$PORT"

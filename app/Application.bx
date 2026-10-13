@@ -21,6 +21,17 @@ class {
 	};
 	this.datasource = "demo";
 
+	// bx-orm (1.7.2 or later) when the module is installed. The Book entity lives in ormmodels.
+	// announceQueryParams and generateStatistics are the app's to set: BxLens cannot force them.
+	if ( createObject( "java", "ortus.boxlang.runtime.BoxRuntime" ).getInstance().getModuleService().hasModule( createObject( "java", "ortus.boxlang.runtime.scopes.Key" ).of( "orm" ) ) ) {
+		this.mappings[ "/ormmodels" ] = getDirectoryFromPath( getCurrentTemplatePath() ) & "ormmodels";
+		this.ormEnabled = true;
+		this.ormSettings = {
+			"datasource" : "demo", "entityPaths" : [ "/ormmodels" ], "dbcreate" : "update", "dialect" : "DerbyTenSevenDialect", "saveMapping" : false,
+			"announceQueryParams" : false, "generateStatistics" : true
+		};
+	}
+
 	function onApplicationStart() {
 		queryExecute( "CREATE TABLE customers ( id INT PRIMARY KEY, name VARCHAR(80), country VARCHAR(2) )" );
 		queryExecute( "CREATE TABLE orders ( id INT PRIMARY KEY, customer_id INT, total DECIMAL(10,2), status VARCHAR(20) )" );
