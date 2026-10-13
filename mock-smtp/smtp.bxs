@@ -1,0 +1,85 @@
+/**
+ * A tiny SMTP sink for the demo harness, written in BoxLang. It accepts every message, so the demo and the tests need no real mail server. The
+ * messages it accepted are appended to the file in MOCK_SMTP_INBOX (separated by a line of =====MAIL=====), so a test can read what was sent.
+ *
+ * Behavior is chosen by the recipient address:
+ *   - an address with "reject" in it is refused with 550, so the message fails or bounces
+ *   - an address with "slow" in it makes the server wait two seconds before it answers
+ *
+ * Start it with harness/start-mock-smtp.sh. The port is MOCK_SMTP_PORT (default 2525).
+ */
+port = int( createObject( "java", "java.lang.System" ).getenv( "MOCK_SMTP_PORT" ) ?: 2525 );
+inbox = createObject( "java", "java.lang.System" ).getenv( "MOCK_SMTP_INBOX" ) ?: "";
+ss = createObject( "java", "java.net.ServerSocket" ).init( port );
+println( "mock SMTP sink on 127.0.0.1:" & port );
+
+function handle( socket ) {
+	try {
+		socket.setSoTimeout( 15000 );
+		reader = createObject( "java", "java.io.BufferedReader" ).init( createObject( "java", "java.io.InputStreamReader" ).init( socket.getInputStream(), "UTF-8" ) );
+		writer = createObject( "java", "java.io.PrintWriter" ).init( socket.getOutputStream(), true );
+		writer.print( "220 mock-smtp ESMTP" & char( 13 ) & char( 10 ) );
+		writer.flush();
+		inData = false;
+		reject = false;
+		body = [];
+		while ( true ) {
+			line = reader.readLine();
+			if ( isNull( line ) ) {
+				break;
+			}
+			if ( inData ) {
+				if ( line == "." ) {
+					inData = false;
+					if ( !reject && len( inbox ) ) {
+						lock name="sinkInbox" type="exclusive" timeout="10" {
+							fileAppend( inbox, "=====MAIL=====" & char( 10 ) & arrayToList( body, char( 10 ) ) & char( 10 ) );
+						}
+					}
+					body = [];
+					reply( writer, reject ? "550 5.7.1 message refused by the mock server" : "250 OK: queued" );
+				} else {
+					body.append( line );
+				}
+				continue;
+			}
+			upper = uCase( line );
+			if ( upper.startsWith( "EHLO" ) || upper.startsWith( "HELO" ) ) {
+				writer.print( "250-mock-smtp" & char( 13 ) & char( 10 ) & "250 8BITMIME" & char( 13 ) & char( 10 ) );
+				writer.flush();
+			} else if ( upper.startsWith( "RCPT TO" ) ) {
+				if ( findNoCase( "slow", line ) ) {
+					sleep( 2000 );
+				}
+				if ( findNoCase( "reject", line ) ) {
+					reject = true;
+					reply( writer, "550 5.1.1 mailbox unavailable" );
+				} else {
+					reply( writer, "250 OK" );
+				}
+			} else if ( upper.startsWith( "DATA" ) ) {
+				inData = true;
+				reply( writer, "354 End data with <CR><LF>.<CR><LF>" );
+			} else if ( upper.startsWith( "QUIT" ) ) {
+				reply( writer, "221 Bye" );
+				break;
+			} else {
+				reply( writer, "250 OK" );
+			}
+		}
+	} catch ( any e ) {
+		println( "sink: " & e.message );
+	} finally {
+		try { socket.close(); } catch ( any e ) {}
+	}
+}
+
+function reply( writer, text ) {
+	writer.print( text & char( 13 ) & char( 10 ) );
+	writer.flush();
+}
+
+while ( true ) {
+	socket = ss.accept();
+	asyncRun( () => handle( socket ) );
+}

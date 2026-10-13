@@ -1,5 +1,15 @@
 {
 	"modules": {
+		"mail": {
+			"settings": {
+				"mailServers": [
+					{ "smtp": "127.0.0.1", "port": "@MOCK_SMTP_PORT@", "username": "", "password": "", "ssl": false, "tls": false, "idleTimeout": "5000", "lifeTimeout": "5000" }
+				],
+				"spoolEnable": false,
+				"spoolInterval": "0.05",
+				"spoolStartDelayMinutes": "0"
+			}
+		},
 		"bxLens": {
 			"settings": {
 				"bar": { "enabled": true, "access": @LENS_ACCESS@ },
@@ -24,6 +34,8 @@
 				"history": { "trackNonHtml": true },
 				"collectors": {
 					"queries": { "includeParams": true },
+					"orm": { "enabled": true },
+					"mail": { "enabled": true, "capture": "full" },
 					"functions": { "enabled": true, "max": 500 },
 					"logs": { "enabled": true },
 					"bifs": { "enabled": true },

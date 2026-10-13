@@ -1,0 +1,12 @@
+<bx:script>
+	ok = true;
+	error = "";
+</bx:script>
+<bx:try>
+	<bx:mail from="shop@example.com" to="ada@example.com" subject="Sent by failover">The first server is down, so the second one takes this message.</bx:mail>
+	<bx:catch type="any">
+		<bx:set ok = false>
+		<bx:set error = bxcatch.message>
+	</bx:catch>
+</bx:try>
+<bx:output>#jsonSerialize( { "ok" : ok, "error" : error } )#</bx:output>

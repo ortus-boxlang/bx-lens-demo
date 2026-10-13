@@ -1,0 +1,15 @@
+/**
+ * An application whose first mail server is down, so a message needs the failover to the second one (the SMTP sink). Used by the Mail demo.
+ */
+class {
+
+	this.name = "bxLensDemoMailFailover";
+
+	smtpPort = getSystemSetting( "MOCK_SMTP_PORT", "2525" );
+
+	this.mailServers = [
+		{ "smtp" : "127.0.0.1", "port" : "2599", "username" : "", "password" : "", "ssl" : false, "tls" : false, "idleTimeout" : "2000", "lifeTimeout" : "2000" },
+		{ "smtp" : "127.0.0.1", "port" : smtpPort, "username" : "", "password" : "", "ssl" : false, "tls" : false, "idleTimeout" : "5000", "lifeTimeout" : "5000" }
+	];
+
+}

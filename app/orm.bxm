@@ -1,0 +1,40 @@
+<bx:script>
+	request.pageTitle = "ORM";
+	request.lookAt = [
+		"Bar > Queries: the Hibernate SQL with an ORM label, next to normal queries.",
+		"Console > Queries: ORM statements ranked with the rest. Console > ORM (BoxLang+): flush counts, failures and Hibernate statistics.",
+		"Console > Errors: the failed INSERT from Fail an insert.",
+		"Needs the bx-orm module (1.7.2 or later), which the start script installs."
+	];
+	// Needs the bx-orm module and the Book entity (app/ormmodels)
+	if ( url.keyExists( "save" ) ) {
+		b = entityNew( "Book" );
+		b.setTitle( "Lens " & now().getTime() );
+		b.setAuthor( "Ada" );
+		entitySave( b );
+		ormFlush();
+	}
+	failure = "";
+	if ( url.keyExists( "fail" ) ) {
+		// A title longer than its column: the INSERT fails at the flush, which announces onORMQuery with the error and onORMException
+		try {
+			bad = entityNew( "Book" );
+			bad.setTitle( repeatString( "x", 400 ) );
+			bad.setAuthor( "Bad" );
+			entitySave( bad );
+			ormFlush();
+		} catch ( any e ) {
+			failure = e.message;
+		}
+	}
+	books = entityLoad( "Book" );
+	byAuthor = ormExecuteQuery( "from Book where author = :a", { a : "Ada" } );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>ORM</h1>
+<p>#books.len()# books loaded through bx-orm, #byAuthor.len()# by Ada. BxLens shows the SQL with the ORM label.</p>
+<p id="failure">#failure.len() ? "The insert failed" : ""#</p>
+<p><a class="btn go" href="/orm.bxm?save=1">Save a book and flush</a> <a class="btn" href="/orm.bxm?fail=1">Fail an insert (title too long)</a> <a class="btn" href="/orm.bxm">Just load</a></p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

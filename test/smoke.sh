@@ -13,7 +13,8 @@ for p in /index.bxm /orders.bxm /n-plus-one.bxm /slow.bxm /query-error.bxm /caug
 	/timers.bxm /functions.bxm /forms.bxm /session.bxm /transaction.bxm /extend.bxm /xss.bxm /requestid.bxm /api/orders.json.bxm /api/rates.json.bxm \
 	/events.bxm /logging.bxm /tasks.bxm /traffic.bxm /errors/index.bxm "/errors/throw.bxm?type=app&caught=1" "/errors/throw.bxm?type=secret&caught=1" \
 	/concurrency/deadlock.bxm /concurrency/lock-contention.bxm /concurrency/executors.bxm /runtime/pool-exhaustion.bxm /runtime/memory-leak.bxm \
-	/runtime/gc-pressure.bxm /runtime/thread-leak.bxm /runtime/cpu-spin.bxm /legacy/index.cfm /legacy/orders.cfm /legacy/n-plus-one.cfm /legacy/tags.cfm \
+	/runtime/gc-pressure.bxm /runtime/thread-leak.bxm /runtime/cpu-spin.bxm /orm.bxm /orm.bxm?save=1 /orm.bxm?fail=1 /mail.bxm /mail/send.bxm?scenario=text /mail/send.bxm?scenario=html /mail/send.bxm?scenario=multipart /mail/send.bxm?scenario=fail /mail/failover/send.bxm \
+	/legacy/index.cfm /legacy/orders.cfm /legacy/n-plus-one.cfm /legacy/tags.cfm \
 	/spans/trycatch.bxm /spans/caught-func.bxm /spans/async.bxm /spans/stream.bxm; do
 	check 200 "$p"
 done

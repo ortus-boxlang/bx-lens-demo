@@ -1,0 +1,81 @@
+<bx:script>
+	// Sends mail with bx:mail so the Mail page of BxLens has something to show. The mock SMTP sink (mock-smtp/smtp.bxs) is started by start.sh.
+	// ?scenario=text|html|hostile|multipart|inline|attach|fail|spool|bounce|slow|many&n=3
+	scenario = url.scenario ?: "text";
+	n = val( url.n ?: 1 );
+	tmp = getTempDirectory();
+	logo = tmp & "lens-logo.png";
+	if ( !fileExists( logo ) ) {
+		fileWrite( logo, toBinary( "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAACM0lEQVR42u3a504bQRiFYW7EZXvhMpMovSu9K70qvRLTiwk2NqYYDA7phUC4g5PRSliJMpgFm9V6jj/pu4Dn/bOzs9vR0Z72RDbJqV4kJ/uQKvUjNSG2OIBUQez4IFL5IaRzYseGoQ643IPkjNhpAQ+JT4+OIJ0VO5JFejgLbWi0tYIkKhkk57rRLLw2+A7agNj+MWh9ufjGSMxnsN14rTcHvScPvTsfnxCJhbeIGq9nxqF3FaC/KYAar78uwnhVjD5CotqFuOCNlxMwXpRgPC+BGm88m4TxdArUePOJ2MfToMabj8Q+nAE13nxQhnm/DGq8eW8W1t1ZKPOo2wreujMHarx1uwLrVgXUeOvmPKwbC4j92X478fb1TQZQDW9fq8K+Wg0fQUW8feU9qPH25UXYlxY3jqAy3rn4IUQAhfHOhQ0CqI53zn+Ec+7T+hEY8M7ZegEI8M6Zz2j43r6V8e7pL6DGu6fEnvz6fwQmvHtCEoAJ7x7/JglAhHePfZcEIMJ7R2UBiPDekR+SAER47/BPSQAivHdIEoAJ7x1ckgQgwnsHluSnQWp8EIAA7+//VScAAd7ft7x+AAa8v3e5/q0QNT4IoDDe37MSIoDCeH/3SrhvA9T4IICCeH/X7819H6TGBwEUwnfuXN3aPwLU+FoEZnwQoIXxnTtWm/OnGDV+bajxtQjM+FoEZvzaUOP/CaHKo66hCMz4vyf2Z/vIQsTllTYOE9k1VqtMw/f27WlP0+cPyvBtgBZpoigAAAAASUVORK5CYII=" ) );
+	}
+	report = tmp & "quarterly-report.txt";
+	fileWrite( report, "Quarter,Orders,Revenue" & char( 10 ) & "Q1,420,18250" & char( 10 ) & "Q2,515,22980" );
+	ok = true;
+	error = "";
+</bx:script>
+<bx:try>
+	<bx:switch expression="#scenario#">
+		<bx:case value="text">
+			<bx:mail from="shop@example.com" to="ada@example.com" subject="Your order 1042 shipped">Hello Ada,
+
+Your order 1042 shipped today. Track it with the number 1Z999AA10123456784.
+
+The Shop team</bx:mail>
+		</bx:case>
+		<bx:case value="html">
+			<bx:mail from="Shop <shop@example.com>" to="ada@example.com" cc="ops@example.com" subject="Welcome to the shop" type="html">
+				<h1 style="color:##0a7">Welcome, Ada</h1>
+				<p>Thanks for signing up. <a href="https://example.com/start">Start shopping</a></p>
+				<ul><li>Free shipping over 50</li><li>30 day returns</li></ul>
+			</bx:mail>
+		</bx:case>
+		<bx:case value="hostile">
+			<bx:mail from="shop@example.com" to="mallory@example.com" subject="Hostile markup" type="html">
+				<p id="hostile">Hostile mail</p>
+				<script>document.body.setAttribute('data-ran', 'yes'); fetch('http://127.0.0.1:1/beacon');</script>
+				<img src="http://127.0.0.1:1/pixel.png" width="1" height="1">
+			</bx:mail>
+		</bx:case>
+		<bx:case value="multipart">
+			<bx:mail from="shop@example.com" to="ada@example.com" subject="Your receipt">
+				<bx:mailpart type="text">Receipt 1042: total 42.50. Thank you.</bx:mailpart>
+				<bx:mailpart type="html"><h2>Receipt 1042</h2><table border="1" cellpadding="6"><tr><td>Widget</td><td>42.50</td></tr></table><p>Thank you.</p></bx:mailpart>
+			</bx:mail>
+		</bx:case>
+		<bx:case value="inline">
+			<bx:mail from="shop@example.com" to="ada@example.com" subject="Your logo" type="html">
+				<bx:mailparam file="#logo#" disposition="inline" contentID="logo" />
+				<p>Here is the logo that was inlined:</p>
+				<img src="cid:logo" width="64" height="64" alt="logo">
+				<p>After the picture.</p>
+			</bx:mail>
+		</bx:case>
+		<bx:case value="attach">
+			<bx:mail from="shop@example.com" to="ada@example.com" bcc="audit@example.com" subject="Quarterly report" mimeAttach="#report#">
+				The quarterly report is attached.
+			</bx:mail>
+		</bx:case>
+		<bx:case value="fail">
+			<bx:mail from="shop@example.com" to="reject@example.com" subject="This one is refused">The mock server refuses this recipient.</bx:mail>
+		</bx:case>
+		<bx:case value="spool">
+			<bx:mail from="shop@example.com" to="ada@example.com" subject="Spooled message" spoolEnable="true">This message waits in the spool until the spool task sends it.</bx:mail>
+		</bx:case>
+		<bx:case value="bounce">
+			<bx:mail from="shop@example.com" to="reject@example.com" subject="Spooled, then refused" spoolEnable="true">The spool task cannot deliver this one.</bx:mail>
+		</bx:case>
+		<bx:case value="slow">
+			<bx:mail from="shop@example.com" to="slow@example.com" subject="A slow server">The mock server waits two seconds before it answers.</bx:mail>
+		</bx:case>
+		<bx:case value="many">
+			<bx:loop from="1" to="#n#" index="i">
+				<bx:mail from="shop@example.com" to="user#i#@example.com" subject="Newsletter #i#">Number #i# of #n#.</bx:mail>
+			</bx:loop>
+		</bx:case>
+	</bx:switch>
+	<bx:catch type="any">
+		<bx:set ok = false>
+		<bx:set error = bxcatch.message>
+	</bx:catch>
+</bx:try>
+<bx:output>#jsonSerialize( { "scenario" : scenario, "ok" : ok, "error" : error } )#</bx:output>
