@@ -1,0 +1,20 @@
+<bx:script>
+	request.pageTitle = "GC pressure";
+	running = application.scenarios.isRunning( "gc" );
+	request.lookAt = [
+		"Console > System: GC count and total GC time climb quickly while heap stays flat (churn, not a leak).",
+		"Compare with Memory growth, where heap climbs and stays up.",
+		"Ask Lensy about garbage collection pressure."
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>GC pressure</h1>
+<p>A thread allocates and drops 8 MB arrays in a tight loop for 60 seconds. Nothing is kept, but the collector never rests.</p>
+<p>State: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "gc" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=gc&seconds=60&return=/runtime/gc-pressure.bxm">Start (60 s)</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=gc&return=/runtime/gc-pressure.bxm">Reset</a>
+</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

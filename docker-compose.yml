@@ -1,0 +1,52 @@
+# docker compose up --build
+# Open http://localhost:8085 and the console at http://localhost:8085/~bxlens/index.bxm (password lens-demo).
+#
+# bx-lens: put the module zip in ./drop and run  LENS_ZIP=/demo/drop/bx-lens.zip docker compose up --build
+# or set LENS_VERSION to a released version.
+# Lensy needs BoxLang+ or a trial (see the readme). The first start pulls the model, which takes a few minutes.
+services:
+  demo:
+    build: .
+    ports:
+      - "8085:8085"
+    environment:
+      WITH_AI: "1"
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      LENS_VERSION: ${LENS_VERSION:-latest}
+      LENS_LICENSE: ${LENS_LICENSE:-}
+      LENS_ZIP: ${LENS_ZIP:-}
+    volumes:
+      - demo-cache:/demo/.cache
+      - demo-run:/demo/.run
+      - ./drop:/demo/drop:ro
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One shot: pulls the chat model (it supports tool calling) and the embedding model for the documentation search
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_MODEL:-llama3.2} && ollama pull nomic-embed-text"]
+    restart: "no"
+
+volumes:
+  demo-cache:
+  demo-run:
+  ollama-models:

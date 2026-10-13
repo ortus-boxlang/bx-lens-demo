@@ -1,0 +1,16 @@
+<bx:script>
+	request.pageTitle = "Query error";
+	failed = "";
+	try {
+		queryExecute( "SELECT nope FROM missing_table WHERE id = :id", { id : 1 } );
+	} catch ( any e ) {
+		failed = e.message;
+		lensException( e );
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Query error</h1>
+<p>A statement that fails, caught in code: #encodeForHTML( failed )#</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,13 @@
+<bx:if isArray( request.lookAt ?: "" ) && request.lookAt.len()>
+<bx:output>
+<div class="look">
+	<h2>Where to look in BxLens</h2>
+	<ul>
+		<bx:loop array="#request.lookAt#" item="line"><li>#encodeForHTML( line )#</li></bx:loop>
+	</ul>
+</div>
+</bx:output>
+</bx:if>
+</main>
+</body>
+</html>

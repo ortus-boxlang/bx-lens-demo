@@ -1,0 +1,13 @@
+{
+	"name" : "bx-lens-demo",
+	"version" : "1.0.0",
+	"slug" : "bx-lens-demo",
+	"shortDescription" : "A demo application that exercises every feature of the BxLens debug bar and console",
+	"type" : "boxlang-modules",
+	"private" : true,
+	"dependencies" : {
+		"bx-lens" : "*",
+		"bx-derby" : "*",
+		"bx-compat-cfml" : "*"
+	}
+}

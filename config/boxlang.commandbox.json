@@ -1,0 +1,41 @@
+{
+	"modules": {
+		"bxLens": {
+			"settings": {
+				"bar": { "enabled": true, "access": "local" },
+				"console": {
+					"enabled": true,
+					"password": "lens-demo",
+					"viewerPassword": "lens-view",
+					"allowHeapDump": true,
+					"access": "local"
+				},
+				"ai": {
+					"enabled": false,
+					"provider": "ollama",
+					"model": "llama3.2",
+					"baseUrl": "http://localhost:11434"
+				},
+				"collect": { "level": "full" },
+				"store": { "flushSeconds": 5 },
+				"ui": { "startOpen": false, "autoOpenOnException": true },
+				"thresholds": { "slowQueryMs": 15, "slowRequestMs": 3000 },
+				"request": { "maxMinutes": 1 },
+				"history": { "trackNonHtml": true },
+				"collectors": {
+					"queries": { "includeParams": true },
+					"functions": { "enabled": true, "max": 500 },
+					"logs": { "enabled": true },
+					"bifs": { "enabled": true },
+					"scopes": { "enabled": true, "url": true, "form": true, "session": true, "request": true }
+				},
+				"dev": { "license": "" }
+			}
+		}
+	},
+	"executors": {
+		"demo-pool": { "type": "fixed", "threads": 2, "description": "Small pool: the executor scenario saturates it" },
+		"demo-workers": { "type": "fixed", "threads": 8, "description": "Healthy pool for comparison" },
+		"demo-background": { "type": "cached", "description": "Cached pool: thread count grows with bursts" }
+	}
+}

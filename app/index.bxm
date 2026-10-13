@@ -1,0 +1,79 @@
+<bx:script>
+	request.pageTitle = "BxLens demo";
+	scenarios = application.scenarios;
+	state = scenarios.status();
+	stateful = scenarios.stateful();
+	// Stateless pages: one request, one kind of data
+	stateless = [
+		{ group : "The bar (one request)", page : "/orders.bxm", title : "Healthy page", look : "Green strip, one joined query, lensMeasure, cache getOrSet, messages." },
+		{ group : "The bar (one request)", page : "/n-plus-one.bxm", title : "N+1 queries", look : "Bar > Queries (repeated statement). Console > Requests > Issues, Queries." },
+		{ group : "The bar (one request)", page : "/slow.bxm", title : "Slow query", look : "Critical slow query. Console > Queries ranked by total time." },
+		{ group : "The bar (one request)", page : "/query-error.bxm", title : "Failed query", look : "Console > Queries (failures), Errors." },
+		{ group : "The bar (one request)", page : "/caught-exception.bxm", title : "Caught exception", look : "Bar opens on Issues by itself. Console > Errors." },
+		{ group : "The bar (one request)", page : "/error.bxm", title : "Uncaught error", look : "Core error page has no bar. Console > Requests (status 500), Errors." },
+		{ group : "The bar (one request)", page : "/http.bxm", title : "Outgoing HTTP", look : "Bar > HTTP: one 200, one 404." },
+		{ group : "The bar (one request)", page : "/http-loop.bxm", title : "HTTP loop", look : "22 calls to one endpoint plus one that cannot connect. Console HTTP." },
+		{ group : "The bar (one request)", page : "/cache.bxm", title : "Cache hits and misses", look : "Bar > Cache. Console > Caches." },
+		{ group : "The bar (one request)", page : "/cache-churn.bxm", title : "Cache churn", look : "Console > Caches: hit rate falls, evictions and misses grow." },
+		{ group : "The bar (one request)", page : "/timers.bxm", title : "Timers and messages", look : "Bar > Timers, Messages. lensStart, lensMeasure, lensDump." },
+		{ group : "The bar (one request)", page : "/functions.bxm", title : "Nested functions", look : "Functions collector on the timeline." },
+		{ group : "The bar (one request)", page : "/forms.bxm", title : "Form with a password", look : "Bar > Scopes: the password is masked." },
+		{ group : "The bar (one request)", page : "/session.bxm", title : "Session scope", look : "Bar > Scopes: the token key is masked." },
+		{ group : "The bar (one request)", page : "/transaction.bxm", title : "Transactions", look : "A committed and a rolled back transaction on the timeline." },
+		{ group : "The bar (one request)", page : "/extend.bxm", title : "Custom panels", look : "Panels from lensPanel() and from the demoLens module." },
+		{ group : "The bar (one request)", page : "/xss.bxm", title : "Escaping", look : "Markup sent to BxLens shows as text and never runs." },
+		{ group : "The bar (one request)", page : "/api/orders.json.bxm", title : "JSON endpoint", look : "No bar. Console > Requests records it." },
+		{ group : "The bar (one request)", page : "/events.bxm", title : "SSE endpoint", look : "No bar. Console > Requests records it." },
+		{ group : "Interrupted and odd requests", page : "/spans/trycatch.bxm", title : "Exception through an include", look : "Interrupted span on the timeline." },
+		{ group : "Interrupted and odd requests", page : "/spans/uncaught.bxm", title : "Uncaught in a function", look : "Request kept with the span marked interrupted." },
+		{ group : "Interrupted and odd requests", page : "/spans/async.bxm", title : "Thread outliving the request", look : "Query from a background thread after the request ended." },
+		{ group : "Interrupted and odd requests", page : "/spans/timeout.bxm", title : "Request timeout", look : "Console > Requests: unfinished/interrupted." },
+		{ group : "Interrupted and odd requests", page : "/spans/hang.bxm", title : "Hanging request (80 s)", look : "Console > In flight with a live stack. Closed as unfinished after request.maxMinutes." },
+		{ group : "Interrupted and odd requests", page : "/spans/abort.bxm", title : "abort", look : "Request finished from onAbort." },
+		{ group : "Interrupted and odd requests", page : "/spans/stream.bxm", title : "Streaming response", look : "Chunks flushed over 3 seconds." },
+		{ group : "Runtime and ops", page : "/stall.bxm", title : "Slow request sample", look : "Waits 3.4 s. With BoxLang+ the slow request sample shows where it was." },
+		{ group : "Runtime and ops", page : "/runtime/cpu-spin.bxm?inline=1", title : "CPU spin in a request", look : "Console > In flight: the live stack points at the loop." },
+		{ group : "Runtime and ops", page : "/errors/index.bxm", title : "Error catalog", look : "Console > Errors: grouped by cause, counts, samples, redaction." },
+		{ group : "Runtime and ops", page : "/logging.bxm", title : "Logging", look : "Console > Logs: every level, live tail." },
+		{ group : "Runtime and ops", page : "/tasks.bxm", title : "Scheduled tasks", look : "Console > Tasks: healthy, failing, slow, overlapping, paused." },
+		{ group : "Runtime and ops", page : "/traffic.bxm", title : "Traffic generator", look : "Console > Overview, Reports (p95, p99, status codes, minute series)." },
+		{ group : "CFML compatibility", page : "/legacy/index.cfm", title : "CFML pages and components", look : "Same bar and console data from .cfm templates and a .cfc." }
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>BxLens demo</h1>
+<p>Every page here produces one kind of data that BxLens can show. Open a page, then open the bar at the bottom of it, or the
+<a href="/~bxlens/index.bxm">console</a> (password in the readme). The README has a ten minute script.</p>
+
+<h2>Scenarios you can start and reset</h2>
+<p class="warn">These run real threads, locks, connections and memory on this JVM so BxLens detects them for real. Reset all stops them and frees what they hold.
+<a class="btn reset" href="/control.bxm?action=resetAll">Reset all</a></p>
+<table>
+	<tr><th>Scenario</th><th>What it does</th><th>State</th><th></th></tr>
+	<bx:loop array="#stateful#" item="s">
+		<tr>
+			<td><a href="#s.page#"><strong>#encodeForHTML( s.title )#</strong></a><br><small>#s.group#</small></td>
+			<td>#encodeForHTML( s.what )#<br><small>Look at: #encodeForHTML( s.look )#</small></td>
+			<td><span class="pill #state[ s.id ].running ? 'on' : ''#">#state[ s.id ].running ? state[ s.id ].detail : 'idle'#</span></td>
+			<td>
+				<a class="btn go" href="/control.bxm?action=start&id=#s.id#">Start</a>
+				<a class="btn reset" href="/control.bxm?action=reset&id=#s.id#">Reset</a>
+			</td>
+		</tr>
+	</bx:loop>
+</table>
+
+<bx:set lastGroup = "" />
+<bx:loop array="#stateless#" item="p">
+	<bx:if p.group != lastGroup>
+		<bx:if lastGroup != ""></table></bx:if>
+		<h2>#p.group#</h2>
+		<table>
+		<bx:set lastGroup = p.group />
+	</bx:if>
+	<tr><td style="width:30%"><a href="#p.page#">#encodeForHTML( p.title )#</a></td><td>#encodeForHTML( p.look )#</td></tr>
+</bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

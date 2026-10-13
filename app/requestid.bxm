@@ -1,0 +1,10 @@
+<bx:script>
+	// The request id three ways: the BIF, the request scope and the logging context
+	mdc = "";
+	try {
+		mdc = createObject( "java", "org.slf4j.MDC" ).get( "requestId" ) ?: "";
+	} catch ( any e ) {
+		mdc = "unavailable";
+	}
+	writeOutput( jsonSerialize( { "bif" : lensRequestId(), "scope" : ( request.bxlens.id ?: "" ), "mdc" : mdc } ) );
+</bx:script>

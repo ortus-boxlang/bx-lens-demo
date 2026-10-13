@@ -1,0 +1,30 @@
+<bx:script>
+	request.pageTitle = "Memory growth";
+	scn = application.scenarios;
+	added = "";
+	if ( url.keyExists( "mb" ) ) {
+		r = scn.leakMemory( val( url.mb ) );
+		added = "Holding #r.heldMb# MB. The demo stops at #r.capMb# MB, 40 percent of the maximum heap.";
+	}
+	held = scn.heldMb();
+	request.lookAt = [
+		"Console > System: heap used keeps climbing and stays up after a GC (use Run GC to prove it).",
+		"Console > System > memory pools: old generation fills.",
+		"Console > Overview: needs-attention list when heap is high.",
+		"Ask Lensy: is there a memory problem? What does garbage collection look like?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Memory growth</h1>
+<p>Each click adds byte arrays to a list kept in the application, like a cache with no limit. The memory is never released until you reset.</p>
+<p>Held now: <span class="pill #held ? 'on' : ''#">#held# MB</span></p>
+<p>
+	<a class="btn go" href="/runtime/memory-leak.bxm?mb=64">Leak 64 MB</a>
+	<a class="btn go" href="/runtime/memory-leak.bxm?mb=256">Leak 256 MB</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=memory&return=/runtime/memory-leak.bxm">Reset (free it and run GC)</a>
+</p>
+<bx:if added != ""><p><strong>#encodeForHTML( added )#</strong></p></bx:if>
+<p><small>The demo never goes past 40 percent of the maximum heap, so it shows pressure without crashing the JVM.</small></p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

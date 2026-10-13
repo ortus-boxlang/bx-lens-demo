@@ -1,0 +1,22 @@
+<bx:script>
+	// Start or reset a stateful scenario, then go back to where the person came from.
+	// /control.bxm?action=start&id=deadlock&return=/concurrency/deadlock.bxm
+	// /control.bxm?action=reset&id=deadlock    /control.bxm?action=resetAll
+	action = url.action ?: "";
+	id = url.id ?: "";
+	args = {};
+	for ( k in url ) {
+		if ( !"action,id,return".listFindNoCase( k ) ) { args[ k ] = url[ k ]; }
+	}
+	back = url.return ?: "/index.bxm";
+	// Only go back to a path on this server
+	if ( !back.startsWith( "/" ) || back.startsWith( "//" ) ) { back = "/index.bxm"; }
+	if ( action == "start" ) {
+		application.scenarios.start( id, args );
+	} else if ( action == "reset" ) {
+		application.scenarios.reset( id );
+	} else if ( action == "resetAll" ) {
+		application.scenarios.resetAll();
+	}
+	location( url = back, addToken = false );
+</bx:script>

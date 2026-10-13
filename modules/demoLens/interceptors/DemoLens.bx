@@ -1,0 +1,20 @@
+/**
+ * Adds a "Demo module" panel with a key/value list to every tracked request.
+ */
+class {
+
+	function onLensRegister( data ) {
+		data.registry.panel( "demo", "Demo module", "bolt", 110, "kv" );
+	}
+
+	function onLensCollect( data ) {
+		data.lens.panel( "demo" )
+			.kv( {
+				module    : "demoLens",
+				requestId : data.requestId,
+				note      : "This panel comes from another module through the onLensCollect interception point"
+			} )
+			.badge( 1, "none" );
+	}
+
+}

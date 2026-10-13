@@ -1,0 +1,10 @@
+<bx:script>
+	// An exception thrown through an include and caught by the page: does the include span get its end event?
+	try {
+		include "/spans/boom.bxm";
+	} catch ( any e ) {
+		writeOutput( "caught: " & e.message );
+	}
+	sleep( 60 );
+	writeOutput( " done" );
+</bx:script>

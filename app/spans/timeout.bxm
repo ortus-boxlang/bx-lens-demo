@@ -1,0 +1,5 @@
+<bx:setting requestTimeout="1" />
+<bx:script>
+	sleep( 2500 );
+	writeOutput( "finished after the timeout" );
+</bx:script>

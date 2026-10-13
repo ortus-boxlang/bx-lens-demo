@@ -1,0 +1,20 @@
+<bx:script>
+	request.pageTitle = "Thread leak";
+	running = application.scenarios.isRunning( "threads" );
+	request.lookAt = [
+		"Console > Threads: 25 threads named demo-leak-N, all sleeping, none ever finishing.",
+		"Console > System: live thread count and peak.",
+		"Ask Lensy: how many threads are there, and are any suspicious?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Thread leak</h1>
+<p>Starts 25 threads that loop forever, like code that creates a thread per request and never ends it.</p>
+<p>State: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "threads" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=threads&count=25&return=/runtime/thread-leak.bxm">Start (25 threads)</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=threads&return=/runtime/thread-leak.bxm">Reset</a>
+</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,4 @@
+<bx:content type="application/json" /><bx:script>
+	rows = queryExecute( "SELECT id, total, status FROM orders ORDER BY id FETCH FIRST 5 ROWS ONLY" );
+	writeOutput( jsonSerialize( rows ) );
+</bx:script>

@@ -1,0 +1,23 @@
+<bx:script>
+	request.pageTitle = "Cache churn";
+	c = cache();
+	// 300 keys written, then a read pattern that mostly misses: low hit rate on the Caches page
+	for ( i = 1; i <= 300; i++ ) {
+		c.set( "demo.churn.#i#", "value #i#", 30 );
+	}
+	hits = 0; misses = 0;
+	for ( i = 1; i <= 600; i++ ) {
+		if ( c.get( "demo.churn.#randRange( 1, 1200 )#" ).isPresent() ) { hits++; } else { misses++; }
+	}
+	request.lookAt = [
+		"Console > Caches: default cache count grows by 300 each visit, hit rate drops below 30 percent.",
+		"Key list is capped at 100 keys. With BoxLang+: read a value, evict, reap and clear.",
+		"Ask Lensy: how are the caches doing?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Cache churn</h1>
+<p>Wrote 300 keys and read 600 random keys from 1200: #hits# hits and #misses# misses. Reload to churn more.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

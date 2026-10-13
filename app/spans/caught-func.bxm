@@ -1,0 +1,19 @@
+<bx:script>
+	request.pageTitle = "Interrupted span";
+	function risky() {
+		sleep( 30 );
+		throw( type = "HarnessError", message = "Thrown in a function the page catches" );
+	}
+	message = "ok";
+	try {
+		risky();
+	} catch ( any e ) {
+		message = "caught: " & e.message;
+	}
+	sleep( 80 );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Interrupted span</h1>
+<p>#message#</p>
+</bx:output>

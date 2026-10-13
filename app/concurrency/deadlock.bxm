@@ -1,0 +1,26 @@
+<bx:script>
+	request.pageTitle = "Deadlock";
+	running = application.scenarios.isRunning( "deadlock" );
+	request.lookAt = [
+		"Console > System: the deadlock banner names both threads (demo-deadlock-A and demo-deadlock-B).",
+		"Console > Threads: both threads are WAITING, with the lock they wait for and the stack.",
+		"Console > Overview: needs-attention list.",
+		"Ask Lensy: are there any deadlocks? Which threads are blocked and by what?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Deadlock</h1>
+<p>Two threads each take a lock and then wait for the lock the other one holds. Nothing ever finishes, so the JVM reports a real deadlock.</p>
+<p>State: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "deadlock" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=deadlock&kind=java&return=/concurrency/deadlock.bxm">Start (Java locks)</a>
+	<a class="btn go" href="/control.bxm?action=start&id=deadlock&kind=lock&return=/concurrency/deadlock.bxm">Start (named bx:lock)</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=deadlock&return=/concurrency/deadlock.bxm">Reset</a>
+</p>
+<ul>
+	<li><strong>Java locks</strong>: two <code>ReentrantLock</code> objects. Reset interrupts the threads and the deadlock ends at once.</li>
+	<li><strong>Named bx:lock</strong>: two named locks, like <code>cflock</code> in a CFML app. A named lock cannot be interrupted, so Reset cannot free it. It ends by itself when the inner lock times out after 90 seconds.</li>
+</ul>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

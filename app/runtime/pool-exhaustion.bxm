@@ -1,0 +1,35 @@
+<bx:script>
+	request.pageTitle = "Connection pool exhaustion";
+	scn = application.scenarios;
+	running = scn.isRunning( "pool" );
+	outcome = "";
+	if ( url.keyExists( "query" ) ) {
+		try {
+			queryExecute( "SELECT COUNT(*) AS n FROM orders" );
+			outcome = "The query ran. The pool still had a free connection.";
+		} catch ( any e ) {
+			outcome = "The query failed after waiting for a connection: " & e.message;
+			lensException( e );
+		}
+	}
+	request.lookAt = [
+		"Console > Datasources > demo: active connections at the pool maximum (5 of 5), threads waiting, timeouts.",
+		"Console > Errors: the connection timeout, grouped.",
+		"Console > Queries: failures count for the statement.",
+		"Ask Lensy: how are the datasources? Why do queries time out?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Connection pool exhaustion</h1>
+<p>The <code>demo</code> datasource has a pool of 5 connections and waits 2 seconds for one. Start holds all five inside open transactions.
+Then run a query: it waits 2 seconds and fails.</p>
+<p>State: <span class="pill #running ? 'on' : ''#">#running ? scn.detail( "pool" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=pool&connections=5&return=/runtime/pool-exhaustion.bxm">Start (hold 5 connections)</a>
+	<a class="btn" href="/runtime/pool-exhaustion.bxm?query=1">Run a query</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=pool&return=/runtime/pool-exhaustion.bxm">Reset</a>
+</p>
+<bx:if outcome != ""><p><strong>#encodeForHTML( outcome )#</strong></p></bx:if>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,13 @@
+<bx:script>
+	request.pageTitle = "Session";
+	session.userId = 42;
+	session.cart = [ { sku : "A-100", qty : 2 } ];
+	session.apiToken = "super-secret-token";
+	request.trace = "harness";
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Session</h1>
+<p>Open the Scopes tab. The api token key is masked.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

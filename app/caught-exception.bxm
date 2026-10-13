@@ -1,0 +1,21 @@
+<bx:script>
+	request.pageTitle = "Caught exception";
+	order = { id : 1 };
+	function price( o ) {
+		return o.total * 2;
+	}
+	message = "No problems.";
+	try {
+		price( order );
+	} catch ( any e ) {
+		lensException( e );
+		message = "Handled: " & e.message;
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Caught exception</h1>
+<p>#message#</p>
+<p>The page rendered normally. Lens still opens on Issues because an exception happened.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,37 @@
+<bx:script>
+	request.pageTitle = "Error catalog";
+	kinds = [
+		{ type : "app", what : "A custom exception type whose message changes on every call (an order number). BxLens groups them as one cause." },
+		{ type : "sql", what : "A bad SQL statement: unknown column." },
+		{ type : "npe", what : "A call on null." },
+		{ type : "div0", what : "Division by zero." },
+		{ type : "key", what : "A missing struct key." },
+		{ type : "cast", what : "A value that cannot be cast to a number." },
+		{ type : "file", what : "A file that does not exist." },
+		{ type : "http", what : "An HTTP call to a port nothing listens on." },
+		{ type : "secret", what : "A message that contains a password and a URL with credentials. Check that the Errors page redacts them." }
+	];
+	request.lookAt = [
+		"Console > Errors: each type is its own group with counts, where it happened, and a stack and request context per sample.",
+		"Call 'app' a few times: still one group, with several samples.",
+		"Open the 'secret' group: the password and the credentials in the URL are hidden.",
+		"Copy the redacted prompt for an AI chat, or use Explain with AI (BoxLang+).",
+		"Console > Reports: the 500 rate and p95 move as you add errors."
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Error catalog</h1>
+<p>Each link throws an uncaught error (a 500). Add <code>&amp;caught=1</code> to catch it in code and send it to the bar with <code>lensException()</code> instead (a 200).</p>
+<table>
+	<tr><th>Type</th><th>What it is</th><th>Uncaught</th><th>Caught</th></tr>
+	<bx:loop array="#kinds#" item="k">
+		<tr>
+			<td><code>#k.type#</code></td><td>#encodeForHTML( k.what )#</td>
+			<td><a href="/errors/throw.bxm?type=#k.type#">500</a></td>
+			<td><a href="/errors/throw.bxm?type=#k.type#&caught=1">200</a></td>
+		</tr>
+	</bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

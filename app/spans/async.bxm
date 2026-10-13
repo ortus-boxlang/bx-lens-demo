@@ -1,0 +1,9 @@
+<bx:script>
+	// A thread that outlives the request
+	thread name = "lensAsync#createUUID().left( 4 )#" {
+		sleep( 1500 );
+		queryExecute( "SELECT COUNT(*) AS n FROM customers" );
+	}
+	queryExecute( "SELECT COUNT(*) AS n FROM orders" );
+	writeOutput( "request done, thread running" );
+</bx:script>

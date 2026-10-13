@@ -1,0 +1,24 @@
+<bx:script>
+	request.pageTitle = "HTTP loop";
+	base = "http://localhost:#cgi.server_port#";
+	// The same endpoint again and again: a loop of calls, like an N+1 over HTTP
+	total = 0;
+	for ( i = 1; i <= 22; i++ ) {
+		r = "";
+		bx:http url="#base#/api/rates.json.bxm?n=#i#" result="r";
+		total += r.statusCode == "200 OK" || r.statusCode == 200 ? 1 : 0;
+	}
+	// One call that cannot connect, so a failed call shows up
+	failed = "";
+	try {
+		bx:http url="http://127.0.0.1:1/nothing" timeout="2" result="failed";
+	} catch ( any e ) {
+		failed = e.message;
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>HTTP loop</h1>
+<p>#total# of 22 calls answered. The last call: #encodeForHTML( isSimpleValue( failed ) ? failed : "answered" )#.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

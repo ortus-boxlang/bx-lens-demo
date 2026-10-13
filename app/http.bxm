@@ -1,0 +1,14 @@
+<bx:script>
+	request.pageTitle = "HTTP";
+	base = "http://localhost:#cgi.server_port#";
+	ok = "";
+	bx:http url="#base#/api/rates.json.bxm" result="ok";
+	missing = "";
+	bx:http url="#base#/api/missing.json" result="missing";
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Outgoing HTTP</h1>
+<p>First call: #ok.statusCode#. Second call: #missing.statusCode#.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,44 @@
+<bx:script>
+	request.pageTitle = "Lock contention";
+	running = application.scenarios.isRunning( "contention" );
+	outcome = "";
+	// ?try=1 asks for the held lock inside this request and gives up after 2 seconds
+	if ( url.keyExists( "try" ) ) {
+		try {
+			bx:lock name="demo-report" timeout=2 {
+				outcome = "Got the lock.";
+			}
+		} catch ( any e ) {
+			outcome = "Failed: " & e.message;
+			lensException( e );
+		}
+	}
+	request.lookAt = [
+		"Console > Threads: demo-lock-waiter-1 to 5 are blocked behind demo-lock-holder.",
+		"Console > Errors: the lock timeout from Try the lock.",
+		"Console > In flight: a request waiting for the lock shows its live stack (use Wait forever).",
+		"Ask Lensy: which threads are blocked, and who holds what?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Lock contention</h1>
+<p>One thread holds the named lock <code>demo-report</code> until you reset. Five more threads queue behind it.</p>
+<p>State: <span class="pill #running ? 'on' : ''#">#running ? application.scenarios.detail( "contention" ) : "idle"#</span></p>
+<p>
+	<a class="btn go" href="/control.bxm?action=start&id=contention&return=/concurrency/lock-contention.bxm">Start</a>
+	<a class="btn" href="/concurrency/lock-contention.bxm?try=1">Try the lock (2 s timeout)</a>
+	<a class="btn" href="/concurrency/lock-contention.bxm?wait=1">Wait forever</a>
+	<a class="btn reset" href="/control.bxm?action=reset&id=contention&return=/concurrency/lock-contention.bxm">Reset</a>
+</p>
+<bx:if outcome != ""><p><strong>#encodeForHTML( outcome )#</strong></p></bx:if>
+</bx:output>
+<bx:script>
+	// Wait forever: this request is stuck in-flight until Reset releases the holder
+	if ( url.keyExists( "wait" ) ) {
+		bx:lock name="demo-report" timeout=0 {
+			writeOutput( "<p>Finally got the lock.</p>" );
+		}
+	}
+</bx:script>
+<bx:include template="/includes/footer.bxm" />

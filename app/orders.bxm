@@ -1,0 +1,22 @@
+<bx:script>
+	request.pageTitle = "Orders";
+	lensMessage( "Listing the newest orders", "info" );
+	orders = lensMeasure( "load orders", () => {
+		return queryExecute(
+			"SELECT o.id, o.total, o.status, c.name FROM orders o JOIN customers c ON c.id = o.customer_id ORDER BY o.id DESC FETCH FIRST 8 ROWS ONLY"
+		);
+	} );
+	countries = cache().getOrSet( "harness.countries", () => { return [ "US", "GB", "DE", "FR", "CA", "AU" ]; } );
+	lensMessage( "Countries served: #countries.len()#", "info" );
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Orders</h1>
+<table>
+	<tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th></tr>
+	<bx:loop query="orders">
+		<tr><td>#orders.id#</td><td>#orders.name#</td><td>#numberFormat( orders.total, "9,999.99" )#</td><td>#orders.status#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

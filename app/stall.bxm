@@ -1,0 +1,11 @@
+<bx:script>request.pageTitle = "Stall";</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Stall</h1>
+<bx:script>
+	// Holds the request past the slow request limit so the watchdog can sample where it is
+	sleep( 3400 );
+</bx:script>
+<p>This page waited 3.4 seconds. Lens samples the thread once a request passes the slow limit and says where it was.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

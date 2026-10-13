@@ -1,0 +1,52 @@
+/**
+ * BxLens demo application. A small shop plus a set of scenarios that each produce one kind of data BxLens can show:
+ * N+1 queries, deadlocks, saturated executors, exhausted connection pools, memory growth, failing tasks and more.
+ * Open the control panel at / to start and reset the scenarios.
+ */
+class {
+
+	this.name              = "bxLensDemo";
+	this.sessionManagement = true;
+	this.mappings[ "/demo" ] = getDirectoryFromPath( getCurrentTemplatePath() );
+	this.schedulers        = [ "demo.schedulers.DemoScheduler" ];
+
+	// A deliberately small pool (5 connections, 2 second wait) so the pool exhaustion scenario shows up quickly
+	this.datasources[ "demo" ] = {
+		"driver"            : "derby",
+		"protocol"          : "memory",
+		"database"          : "lensdemo",
+		"maxConnections"    : 5,
+		"minConnections"    : 1,
+		"connectionTimeout" : 2
+	};
+	this.datasource = "demo";
+
+	function onApplicationStart() {
+		queryExecute( "CREATE TABLE customers ( id INT PRIMARY KEY, name VARCHAR(80), country VARCHAR(2) )" );
+		queryExecute( "CREATE TABLE orders ( id INT PRIMARY KEY, customer_id INT, total DECIMAL(10,2), status VARCHAR(20) )" );
+		queryExecute( "CREATE TABLE numbers ( n INT PRIMARY KEY )" );
+		var names = [ "Acme Freight", "Northwind Traders", "Globex", "Initech", "Umbrella Supply", "Hooli", "Stark Industries", "Wayne Logistics", "Wonka Foods", "Cyberdyne", "Soylent", "Tyrell Corp" ];
+		var countries = [ "US", "GB", "DE", "FR", "CA", "AU" ];
+		names.each( ( n, i ) => {
+			queryExecute( "INSERT INTO customers VALUES ( :id, :name, :country )", { id : i, name : n, country : countries[ ( i - 1 ) % 6 + 1 ] } );
+		} );
+		for ( var i = 1; i <= 30; i++ ) {
+			queryExecute(
+				"INSERT INTO orders VALUES ( :id, :cid, :total, :status )",
+				{ id : 10400 + i, cid : ( i - 1 ) % 12 + 1, total : i * 37.5, status : i % 5 == 0 ? "shipped" : "open" }
+			);
+		}
+		for ( var n = 1; n <= 160; n++ ) {
+			queryExecute( "INSERT INTO numbers VALUES ( :n )", { n : n } );
+		}
+		application.scenarios = new demo.models.Scenarios();
+		return true;
+	}
+
+	function onApplicationEnd() {
+		if ( !isNull( application.scenarios ) ) {
+			application.scenarios.resetAll();
+		}
+	}
+
+}
