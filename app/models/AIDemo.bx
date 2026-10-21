@@ -1,0 +1,151 @@
+/**
+ * BoxLang AI and MCP workload for BxLens. Registers two local MCP servers,
+ * three agents, and a bounded MCP/agent workload for the demo scheduler.
+ */
+class {
+
+	variables.cycle = 0;
+	variables.agentIndex = 0;
+	variables.agentsEnabled = false;
+
+	function init( required numeric port, boolean agentsEnabled = false ) {
+		variables.agentsEnabled = arguments.agentsEnabled;
+		variables.metricsUrl = "http://127.0.0.1:#arguments.port#/~bxai/mcp.bxm?server=bxLensMetrics";
+		variables.ordersUrl = "http://127.0.0.1:#arguments.port#/~bxai/mcp.bxm?server=bxLensOperations";
+		return this;
+	}
+
+	function registerServers() {
+		mcpServer( "bxLensMetrics" )
+			.setDescription( "Synthetic runtime metrics and demo events for BxLens" )
+			.setVersion( "1.0.0" )
+			.registerTools( [
+				aiTool( "get_runtime_snapshot", "Return a synthetic runtime snapshot for an area", ( area ) => {
+					return {
+						area : arguments.area,
+						activeRequests : randRange( 1, 12 ),
+						queueDepth : randRange( 0, 8 ),
+						sampledAt : now().toString(),
+						status : "healthy"
+					};
+				} ).addParameter( aiToolParam( "area", "string", "Runtime area to inspect" ).required() ),
+				aiTool( "record_demo_event", "Record a synthetic operational event", ( message, level ) => {
+					writeLog( text = "MCP demo event [#arguments.level#]: #arguments.message#", type = "information", log = "demo" );
+					return { recorded : true, level : arguments.level, message : arguments.message, recordedAt : now().toString() };
+				} )
+					.addParameter( aiToolParam( "message", "string", "Short event message" ).required() )
+					.addParameter( aiToolParam( "level", "string", "Event level such as info or warning" ).required() )
+			] );
+
+		mcpServer( "bxLensOperations" )
+			.setDescription( "Synthetic order lookup and shipping operations for BxLens" )
+			.setVersion( "1.0.0" )
+			.registerTools( [
+				aiTool( "lookup_order_status", "Look up a synthetic order status", ( orderId ) => {
+					return {
+						orderId : arguments.orderId,
+						status : arguments.orderId mod 3 == 0 ? "shipped" : "processing",
+						checkedAt : now().toString()
+					};
+				} ).addParameter( aiToolParam( "orderId", "number", "Numeric demo order identifier" ).required() ),
+				aiTool( "calculate_shipping", "Estimate shipping and optionally simulate a downstream failure", ( weightKg, expedited, simulateFailure ) => {
+					if ( arguments.simulateFailure ) {
+						throw( type = "MCPDemoUpstreamError", message = "Synthetic carrier API timeout from mcp-shipping.test" );
+					}
+					var baseCost = max( 4, arguments.weightKg * 1.75 );
+					return {
+						weightKg : arguments.weightKg,
+						expedited : arguments.expedited,
+						cost : round( ( baseCost + ( arguments.expedited ? 8 : 0 ) ) * 100 ) / 100,
+						currency : "USD"
+					};
+				} )
+					.addParameter( aiToolParam( "weightKg", "number", "Parcel weight in kilograms" ).required() )
+					.addParameter( aiToolParam( "expedited", "boolean", "Whether expedited shipping is requested" ).required() )
+					.addParameter( aiToolParam( "simulateFailure", "boolean", "Throw a synthetic carrier error when true" ).required() )
+			] );
+
+		return true;
+	}
+
+	function runScheduledCycle() {
+		variables.cycle++;
+		var metricsClient = MCP( variables.metricsUrl );
+		var operationsClient = MCP( variables.ordersUrl );
+
+		assertMcpSuccess( metricsClient.send( "get_runtime_snapshot", { area : "scheduler" } ), "get_runtime_snapshot" );
+		assertMcpSuccess(
+			metricsClient.send( "record_demo_event", {
+				message : "Scheduled observability heartbeat #variables.cycle#",
+				level : variables.cycle mod 3 == 0 ? "warning" : "info"
+				} ),
+			"record_demo_event"
+		);
+		assertMcpSuccess( operationsClient.send( "lookup_order_status", { orderId : 10400 + variables.cycle } ), "lookup_order_status" );
+
+		// Exercise a real tool exception periodically so BxLens records MCP/task failures too.
+		var simulateFailure = variables.cycle mod 7 == 0;
+		var shippingResult = operationsClient.send( "calculate_shipping", {
+			weightKg : ( variables.cycle mod 8 ) + 1,
+			expedited : variables.cycle mod 2 == 0,
+			simulateFailure : simulateFailure
+		} );
+		if ( simulateFailure ) {
+			throw( type = "ScheduledMCPFailure", message = "Scheduled shipping tool intentionally failed on cycle #variables.cycle#" );
+		}
+		assertMcpSuccess( shippingResult, "calculate_shipping" );
+
+		// One model invocation every fourth cycle, rotating among three agents.
+		if ( variables.agentsEnabled && variables.cycle mod 4 == 0 ) {
+			variables.agentIndex = ( variables.agentIndex mod 3 ) + 1;
+			var agents = getAgents();
+			var prompts = [
+				"Use get_runtime_snapshot for the scheduler area, then summarize the current health in one sentence.",
+				"Use lookup_order_status for order 10402, then explain its status briefly.",
+				"Use get_runtime_snapshot for the agents area and record_demo_event for a concise agent heartbeat, then summarize the result."
+			];
+			var response = agents[ variables.agentIndex ].run( prompts[ variables.agentIndex ] );
+			writeLog( text = "AI demo agent #variables.agentIndex# completed cycle #variables.cycle#", type = "information", log = "demo" );
+			return response;
+		}
+
+		return { cycle : variables.cycle, mcpCalls : 4, agentsEnabled : variables.agentsEnabled };
+	}
+
+	private function getAgents() {
+		if ( !structKeyExists( variables, "agents" ) ) {
+			variables.agents = [
+				aiAgent(
+					name : "LensMetricsAnalyst",
+					description : "Summarize synthetic runtime metrics from the demo MCP server",
+					instructions : "Use the available MCP tools when asked for live data. Keep summaries brief.",
+					mcpServers : [ { url : variables.metricsUrl, toolNames : [ "get_runtime_snapshot", "record_demo_event" ] } ]
+				),
+				aiAgent(
+					name : "LensOrderAnalyst",
+					description : "Inspect synthetic order and shipping data from the demo MCP server",
+					instructions : "Use the available MCP tools to answer. Do not invent order or shipping results.",
+					mcpServers : [ { url : variables.ordersUrl, toolNames : [ "lookup_order_status", "calculate_shipping" ] } ]
+				),
+				aiAgent(
+					name : "LensOperationsCoordinator",
+					description : "Correlate metrics and operational information across both demo MCP servers",
+					instructions : "Use MCP tools to collect live metrics and operations information. Give a concise operational summary.",
+					mcpServers : [
+						{ url : variables.metricsUrl, toolNames : [ "get_runtime_snapshot", "record_demo_event" ] },
+						{ url : variables.ordersUrl, toolNames : [ "lookup_order_status", "calculate_shipping" ] }
+					]
+				)
+			];
+		}
+		return variables.agents;
+	}
+
+	private function assertMcpSuccess( required any result, required string toolName ) {
+		if ( !arguments.result.getSuccess() ) {
+			throw( type = "MCPDemoCallError", message = "MCP tool #arguments.toolName# failed: #arguments.result.getData()#" );
+		}
+		return arguments.result.getData();
+	}
+
+}

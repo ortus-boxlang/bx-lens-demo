@@ -15,6 +15,16 @@ class {
 			} )
 			.every( 30, "seconds" );
 
+		// Regular MCP tool calls, plus an Ollama-backed agent run every fourth cycle when WITH_AI=1.
+		scheduler.task( "ai-mcp-heartbeat" )
+			.call( () => {
+				return application.aiDemo.runScheduledCycle();
+			} )
+			.every( 15, "seconds" )
+			.onFailure( ( task, exception ) => {
+				writeLog( text = "ai-mcp-heartbeat failed: #exception.message#", type = "error", log = "demo" );
+			} );
+
 		// Failing: throws on every run, so Tasks shows the failure count, the error and the stack
 		scheduler.task( "sync-prices" )
 			.call( () => {

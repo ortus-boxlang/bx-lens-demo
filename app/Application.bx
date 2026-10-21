@@ -51,6 +51,11 @@ class {
 			queryExecute( "INSERT INTO numbers VALUES ( :n )", { n : n } );
 		}
 		application.scenarios = new demo.models.Scenarios();
+		application.aiDemo = new demo.models.AIDemo(
+			port = val( getSystemSetting( "BOXLANG_DEMO_PORT", "8085" ) ),
+			agentsEnabled = getSystemSetting( "WITH_AI", "" ) == "1"
+		);
+		application.aiDemo.registerServers();
 		return true;
 	}
 

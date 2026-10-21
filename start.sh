@@ -29,7 +29,7 @@ cd "$HERE"
 mkdir -p "$RUN"
 cd "$HERE/app"
 echo "+ installing demo modules into ./app/boxlang_modules"
-install-bx-module bx-lens,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
+install-bx-module bx-lens,bx-ai,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
 
 # Keep the demo-only module local to this checkout too.
 mkdir -p "$HERE/app/boxlang_modules"
@@ -54,7 +54,7 @@ fi
 
 CONFIG_FILE="$RUN/boxlang.json"
 cp "$HERE/config/boxlang.json" "$CONFIG_FILE"
-sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_LICENSE@|${LENS_LICENSE:-}|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|" "$CONFIG_FILE"
+sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_LICENSE@|${LENS_LICENSE:-}|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|g; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|g" "$CONFIG_FILE"
 
 cleanup() {
 	[ -z "${SMTP_PID:-}" ] || kill "$SMTP_PID" 2>/dev/null || true
@@ -79,6 +79,7 @@ echo "+ demo on http://localhost:$PORT. Console: http://localhost:$PORT/~bxlens/
 # Let /~bxlens/ reach BoxLang: the default pass predicate plus the console path.
 export BOXLANG_PASS_PREDICATE='regex( '"'"'^(/.+?\.cfml|/.+?\.cf[cms]|.+?\.bx[ms]{0,1})(/.*)?$'"'"' ) or regex( '"'"'^/~bxlens/?$'"'"' )'
 if command -v boxlang-miniserver >/dev/null 2>&1; then
+	export BOXLANG_DEMO_PORT="$PORT"
 	boxlang-miniserver --webroot . --host "$HOST" --port "$PORT" --configPath "$CONFIG_FILE"
 else
 	echo "MiniServer was not found. Install it with the BoxLang Quick Installer or BVM, then rerun ./start.sh." >&2

@@ -23,7 +23,7 @@ cd bx-lens-demo
 ./start.sh
 ```
 
-The script checks that BoxLang is available, changes into `app/`, and installs `bx-lens`, `bx-derby`, `bx-compat-cfml`, `bx-plus`, `bx-orm` and `bx-mail` into `app/boxlang_modules/` with `install-bx-module --local`. It also copies the demo-only `demoLens` module locally, starts a small SMTP sink on port 2525 for the Mail page, and launches the installed MiniServer with `app/` as its web root. Runtime settings are supplied using MiniServer's `--configPath` argument. If BoxLang is missing, install it with the Quick Installer or BVM and rerun the script.
+The script checks that BoxLang is available, changes into `app/`, and installs `bx-lens`, `bx-ai`, `bx-derby`, `bx-compat-cfml`, `bx-plus`, `bx-orm` and `bx-mail` into `app/boxlang_modules/` with `install-bx-module --local`. It also copies the demo-only `demoLens` module locally, starts a small SMTP sink on port 2525 for the Mail page, and launches the installed MiniServer with `app/` as its web root. Runtime settings are supplied using MiniServer's `--configPath` argument. If BoxLang is missing, install it with the Quick Installer or BVM and rerun the script.
 
 | | |
 |---|---|
@@ -143,7 +143,7 @@ Pages are listed with how to trigger them and what to look for. Every page also 
 |---|---|
 | `/errors/index.bxm` | Nine error types, caught (200) or uncaught (500). `app` changes its message each time and still groups as one cause. `secret` proves redaction |
 | `/logging.bxm` | One line at every level in `application.log` and `demo.log`, and a flood option for the live tail |
-| `/tasks.bxm` | The scheduler `demoScheduler`: `refresh-stats` healthy, `sync-prices` failing, `nightly-report` slow, `export-orders` overlapping, `warm-cache` paused. Tasks start with the first request to the app |
+| `/tasks.bxm` | The `demoScheduler`: `refresh-stats` healthy, `sync-prices` failing, `nightly-report` slow, `export-orders` overlapping, `warm-cache` paused, plus `ai-mcp-heartbeat`. The heartbeat calls tools on two local MCP servers every 15 seconds and intentionally fails every seventh cycle; with `WITH_AI=1`, it also runs one of three Ollama-backed agents every fourth cycle. Tasks start with the first request to the app |
 | `/traffic.bxm` | A browser side generator with a weighted mix of pages, 404s and 500s |
 
 ### Integrations
@@ -156,6 +156,12 @@ Both are on in the demo and use their own modules.
 | `/mail.bxm` | Eleven `bx:mail` scenarios sent to the SMTP sink: text, HTML, hostile HTML (scripts and a tracking pixel the preview must not run), multipart, inline image, attachment with bcc, refused recipient, slow server, spooled, bounced and a loop of 25. A failover button sends through an app whose first SMTP server is down. BxLens shows them on the **Mail** page. The sink keeps what it accepted in `.run/inbox.log` |
 
 BxLens listens to the `onMail` events of `bx-mail`. **No `bx-mail` release announces them yet**, so the messages may be sent while the Mail page stays empty. Install a `bx-mail` build that announces those events when one is available.
+
+### AI agents and MCP workload
+
+`bx-ai` is installed locally with the other app modules. Application startup registers two small MCP servers at `/~bxai/mcp.bxm?server=bxLensMetrics` and `/~bxai/mcp.bxm?server=bxLensOperations`; their tools return synthetic metrics, order and shipping data, and emit demo log events. The `ai-mcp-heartbeat` scheduler calls those tools every 15 seconds and intentionally generates an MCP/tool failure every seventh cycle. This produces ongoing MCP, scheduler, logging and error activity without requiring a model.
+
+Set `WITH_AI=1` to enable the three Ollama-backed agents as well. The scheduler runs an agent every fourth heartbeat, rotating through metrics, order and cross-server operations analysis. These model calls require Ollama and the configured model, so may take several seconds; by default only the MCP workload runs. The workload is intentionally demo-only and does not place real orders or contact external services.
 
 ### CFML
 

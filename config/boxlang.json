@@ -43,6 +43,13 @@
 				},
 				"dev": { "license": "@LENS_LICENSE@" }
 			}
+		},
+		"bxai": {
+			"settings": {
+				"provider": "ollama",
+				"chatURL": "@OLLAMA_URL@",
+				"defaultParams": { "model": "@OLLAMA_MODEL@" }
+			}
 		}
 	},
 	"executors": {
