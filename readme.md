@@ -23,7 +23,7 @@ cd bx-lens-demo
 ./start.sh
 ```
 
-The script checks that BoxLang is available, then installs `bx-lens`, `bx-derby`, `bx-compat-cfml`, `bx-plus`, `bx-orm` and `bx-mail` into the project-local `boxlang_modules/` directory with `install-bx-module --local`. It also copies the demo-only `demoLens` module locally, starts a small SMTP sink on port 2525 for the Mail page, and launches the installed MiniServer. If BoxLang is missing, install it with the Quick Installer or BVM and rerun the script.
+The script checks that BoxLang is available, changes into `app/`, and installs `bx-lens`, `bx-derby`, `bx-compat-cfml`, `bx-plus`, `bx-orm` and `bx-mail` into `app/boxlang_modules/` with `install-bx-module --local`. It also copies the demo-only `demoLens` module locally, starts a small SMTP sink on port 2525 for the Mail page, and launches the installed MiniServer with `app/` as its web root. Runtime settings are supplied using MiniServer's `--configPath` argument. If BoxLang is missing, install it with the Quick Installer or BVM and rerun the script.
 
 | | |
 |---|---|
@@ -190,7 +190,7 @@ app/                    the web root
   concurrency/ runtime/ errors/ spans/ legacy/ api/ mail/ ormmodels/ orm.bxm mail.bxm
 config/boxlang.json     BxLens settings, executors (demo-pool, demo-workers, demo-background)
 modules/demoLens/       a tiny module that adds a panel to every request
-boxlang_modules/        project-local installed modules (created by start.sh)
+app/boxlang_modules/    project-local installed modules (created by start.sh)
 mock-smtp/smtp.bxs      the SMTP sink for the Mail page
 start.sh                MiniServer launcher        Dockerfile, docker-compose.yml
 server.json, box.json   CommandBox                 test/smoke.sh

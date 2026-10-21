@@ -3,5 +3,4 @@
 derby.log
 logs/
 drop/*.zip
-/boxlang_modules/
-/.boxlang.json
+/app/boxlang_modules/
