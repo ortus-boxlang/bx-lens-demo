@@ -13,7 +13,7 @@ The control panel at `/` lists everything, says what to look at in BxLens, and h
 
 ## Quick start
 
-You need Java 21 or later and `curl`. Pick one way to run it.
+Install BoxLang and MiniServer first with the [BoxLang Quick Installer](https://boxlang.ortusbooks.com/getting-started/installation/boxlang-quick-installer) or [BVM](https://boxlang.ortusbooks.com/getting-started/installation/boxlang-version-manager-bvm). These provide the `boxlang`, `install-bx-module`, and MiniServer commands. The demo script does not install or download BoxLang, MiniServer, or web support. You need Java 21 or later.
 
 ### 1. MiniServer script (Linux and macOS)
 
@@ -23,7 +23,7 @@ cd bx-lens-demo
 ./start.sh
 ```
 
-The script downloads BoxLang, MiniServer, the Derby, CFML compatibility, `bx-orm`, `bx-mail`, `bx-plus` and `bx-lens` modules into `.cache/`, builds a BoxLang home in `.run/home`, starts a small SMTP sink on port 2525 for the Mail page, and starts the demo.
+The script checks that BoxLang is available, then installs `bx-lens`, `bx-derby`, `bx-compat-cfml`, `bx-plus`, `bx-orm` and `bx-mail` into the project-local `boxlang_modules/` directory with `install-bx-module --local`. It also copies the demo-only `demoLens` module locally, starts a small SMTP sink on port 2525 for the Mail page, and launches the installed MiniServer. If BoxLang is missing, install it with the Quick Installer or BVM and rerun the script.
 
 | | |
 |---|---|
@@ -36,13 +36,8 @@ Options, all environment variables:
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT`, `HOST` | `8085`, `127.0.0.1` | Where to listen |
-| `LENS_ZIP` | | Path to a `bx-lens` module zip (a build, or a drop from the team). Use this until BxLens is published |
-| `LENS_VERSION` | `latest` | Released version to install from downloads.ortussolutions.com |
-| `BOXLANG_VERSION` | `1.19.0-snapshot` | BxLens needs BoxLang 1.19.0 or later. Change this to `1.19.0` once it is released |
 | `LENS_LICENSE` | | Show a license state in the console: `trial`, `plus`, `expired` or `none` |
-| `WITH_AI` | | Set to `1` to turn Lensy on (see [Lensy](#lensy-and-ollama)) |
-| `BX_ORM_VERSION` | `1.7.2-snapshot` | `bx-orm` build (the bleeding edge). BxLens needs 1.7.2 or later |
-| `BX_MAIL_VERSION`, `BX_MAIL_ZIP` | `1.4.15` | `bx-mail` release, or a zip of a build. See [Integrations](#integrations) |
+| `WITH_AI` | | Set to `1` to start local Ollama using Docker Compose, pull the configured models, and turn Lensy on (see [Lensy](#lensy-and-ollama)); requires Docker Compose |
 | `MOCK_SMTP_PORT` | `2525` | Port of the SMTP sink |
 | `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `llama3.2` | Where Lensy finds its model |
 
@@ -55,7 +50,7 @@ cp /path/to/bx-lens.zip drop/        # until BxLens is published, or set LENS_VE
 LENS_ZIP=/demo/drop/bx-lens.zip docker compose up --build
 ```
 
-Same URLs as above. The first start downloads the model, which takes a few minutes. The container allows console access from private networks (`LENS_ACCESS`), because a published port does not arrive from loopback. That is fine on your laptop and wrong on a shared server.
+This runs the containerized demo, Ollama, and model puller. For the local MiniServer workflow above, `start.sh` only starts the Ollama service and pulls the configured models through Docker Compose when you set `WITH_AI=1`; BoxLang/MiniServer remain installed on your host.
 
 ### 3. CommandBox
 
@@ -64,7 +59,7 @@ box install
 box server start
 ```
 
-`server.json` selects BoxLang, uses `config/boxlang.commandbox.json` and installs the modules. Use `/~bxlens/index.bxm` for the console. The `demoLens` module panel (the extra panel on every page), the SMTP sink and `bx-orm` and `bx-mail` come only with the MiniServer script and Docker. On CommandBox, start the sink yourself with `boxlang mock-smtp/smtp.bxs` and install `bx-orm` and `bx-mail`.
+`server.json` selects BoxLang, uses `config/boxlang.commandbox.json` and installs the modules. Use `/~bxlens/index.bxm` for the console. The `demoLens` module panel and SMTP sink are started by `start.sh`; on CommandBox, start the sink yourself with `boxlang mock-smtp/smtp.bxs` and install `bx-orm` and `bx-mail` if needed.
 
 ## BoxLang+ and Lensy
 
@@ -76,19 +71,17 @@ export BX_LICENSE_KEY="..."
 ./start.sh activate
 ```
 
-This runs `module:plus activate` against the demo's own BoxLang home (`.run/home`). The home is kept between starts, so you activate once. The console header changes to `BoxLang+ active` within five minutes. To show only a license *state* without a real license, use `LENS_LICENSE=trial|plus|expired|none`.
+This runs `module:plus activate` against the BoxLang installation selected by your Quick Installer or BVM setup. To show only a license *state* without a real license, use `LENS_LICENSE=trial|plus|expired|none`.
 
 ### Lensy and Ollama
 
 Lensy uses a model through `bx-ai`. The demo is set up for a local [Ollama](https://ollama.com), so nothing leaves your machine.
 
 ```bash
-ollama pull llama3.2            # chat model, supports tool calling
-ollama pull nomic-embed-text    # embeddings for the documentation search
 WITH_AI=1 ./start.sh
 ```
 
-Open the console, **AI** page, press **Test connection**. With Docker this is already done for you. To use another model, set `OLLAMA_MODEL`. A larger model answers harder questions better.
+With `WITH_AI=1`, the script starts the `ollama` service from `docker-compose.yml` and runs the model-pull service, which fetches `OLLAMA_MODEL` and `nomic-embed-text`. Docker Compose is required. The two `ollama pull` commands above are only needed if you run Ollama yourself instead; in that case set `OLLAMA_URL` if it is not `http://localhost:11434`. Open the console, **AI** page, and press **Test connection**. A larger model answers harder questions better.
 
 ## Ten minute showcase
 
@@ -162,11 +155,11 @@ Both are on in the demo and use their own modules.
 | `/orm.bxm` | `bx-orm` entities. *Save a book and flush* inserts and flushes, *Fail an insert* makes a flush fail (title longer than its column). BxLens shows the Hibernate SQL with an ORM label in **Queries**, and with BoxLang+ the **ORM** page with flushes, failures and statistics. Needs `bx-orm` 1.7.2 or later |
 | `/mail.bxm` | Eleven `bx:mail` scenarios sent to the SMTP sink: text, HTML, hostile HTML (scripts and a tracking pixel the preview must not run), multipart, inline image, attachment with bcc, refused recipient, slow server, spooled, bounced and a loop of 25. A failover button sends through an app whose first SMTP server is down. BxLens shows them on the **Mail** page. The sink keeps what it accepted in `.run/inbox.log` |
 
-BxLens listens to the `onMail` events of `bx-mail`. **No `bx-mail` release announces them yet**, so with `1.4.15` the messages are sent but the Mail page stays empty. When a release ships, set `BX_MAIL_VERSION`, or use `BX_MAIL_ZIP` with a build that has them.
+BxLens listens to the `onMail` events of `bx-mail`. **No `bx-mail` release announces them yet**, so the messages may be sent while the Mail page stays empty. Install a `bx-mail` build that announces those events when one is available.
 
 ### CFML
 
-`/legacy/` has `.cfm` templates and a `.cfc` component (`cfquery`, `cfqueryparam`, `cfhttp`, `cflock`, `cfthread`, `cftry`, `cfthrow`) with the same N+1 and error stories. BxLens sees them like any other code. They need the `bx-compat-cfml` module, which the start script installs.
+`/legacy/` has `.cfm` templates and a `.cfc` component (`cfquery`, `cfqueryparam`, `cfhttp`, `cflock`, `cfthread`, `cftry`, `cfthrow`) with the same N+1 and error stories. BxLens sees them like any other code. They need the `bx-compat-cfml` module, which the start script installs locally.
 
 ## Resetting
 
@@ -197,6 +190,7 @@ app/                    the web root
   concurrency/ runtime/ errors/ spans/ legacy/ api/ mail/ ormmodels/ orm.bxm mail.bxm
 config/boxlang.json     BxLens settings, executors (demo-pool, demo-workers, demo-background)
 modules/demoLens/       a tiny module that adds a panel to every request
+boxlang_modules/        project-local installed modules (created by start.sh)
 mock-smtp/smtp.bxs      the SMTP sink for the Mail page
 start.sh                MiniServer launcher        Dockerfile, docker-compose.yml
 server.json, box.json   CommandBox                 test/smoke.sh
@@ -209,7 +203,7 @@ The demo turns on more than BxLens does by default, so every tab has data: `coll
 Be aware of what has and has not been run:
 
 - **Run and checked** on BoxLang `1.19.0-snapshot` with MiniServer: the whole app, every scenario (start, JVM level effect, reset), the scheduler, the CFML pages and `start.sh`.
-- **Not run yet**: BxLens itself. The module is not published, so `start.sh` needs `LENS_ZIP` until it is. The pages that call `lensMessage()`, `lensException()` and friends were ported from the BxLens harness and not exercised here. What the bar and console show for each scenario, and Lensy's answers, are the intent of the page and need a pass with the real module.
+- **Not run yet**: BxLens itself. The pages that call `lensMessage()`, `lensException()` and friends were ported from the BxLens harness and not exercised here. What the bar and console show for each scenario, and Lensy's answers, are the intent of the page and need a pass with the real module.
 - **Not run**: Docker, CommandBox and `./start.sh activate` (BoxLang+). The commands follow the documentation.
 - **ORM and mail**: the pages run against the real `bx-orm` 1.7.2 snapshot and `bx-mail` 1.4.15 and the SMTP sink (entities save, a flush fails, every mail scenario sends, the failover works). What BxLens shows for them was not checked, and the Mail page stays empty until a `bx-mail` release announces `onMail` events.
 - Windows: use Docker or WSL. There is no PowerShell script.
