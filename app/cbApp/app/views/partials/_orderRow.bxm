@@ -1,0 +1,8 @@
+<bx:output>
+<tr>
+	<td><a href="#event.buildLink( linkTo = 'orders.show', queryString = 'id=' & args.row.id )#">#args.row.id#</a></td>
+	<td>#encodeForHTML( args.row.customer )#</td>
+	<td><span class="pill #args.row.status == 'cancelled' ? 'err' : ( args.row.status == 'shipped' ? 'ok' : '' )#">#args.row.status#</span></td>
+	<td style="text-align:right">#money( args.row.total )#</td>
+</tr>
+</bx:output>

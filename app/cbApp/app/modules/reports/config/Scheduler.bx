@@ -1,0 +1,22 @@
+/**
+ * The reports module scheduler, registered by ColdBox as cbScheduler@reports.
+ */
+class {
+
+	function configure() {
+		setTimezone( "UTC" );
+
+		// A real calendar schedule: 08:00 on weekdays. It rarely fires during a demo, but it has a next run time to show.
+		task( "daily-digest" )
+			.call( () => getInstance( "DigestService@reports" ).send() )
+			.onWeekdays( "08:00" );
+
+		// Runs every minute: cancels old open orders and reports how many it changed
+		task( "stale-order-cleanup" )
+			.call( () => getInstance( "DigestService@reports" ).cleanup() )
+			.delay( 20, "seconds" )
+			.every( 60, "seconds" )
+			.onSuccess( ( task, result ) => log.info( "stale-order-cleanup finished" ) );
+	}
+
+}

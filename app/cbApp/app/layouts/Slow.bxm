@@ -1,0 +1,12 @@
+<bx:script>
+	// A layout that does slow work of its own: 800 ms before it wraps the view
+	sleep( 800 );
+</bx:script>
+<bx:output>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Slow layout</title></head>
+<body style="font:15px system-ui;max-width:900px;margin:24px auto">
+<p><small>This layout waited 800 ms before wrapping the view.</small></p>
+#renderView()#
+</body></html>
+</bx:output>

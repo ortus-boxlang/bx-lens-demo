@@ -1,0 +1,46 @@
+/**
+ * Status of every ColdBox scheduler: the application scheduler and the ones the custom modules register.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="schedulerService" inject="coldbox:schedulerService";
+
+	function index( event, rc, prc ) {
+		prc.schedulers = [];
+		var all = variables.schedulerService.getSchedulers();
+		for ( var name in all ) {
+			var s = all[ name ];
+			var rows = [];
+			var stats = s.getTaskStats();
+			for ( var taskName in s.getRegisteredTasks() ) {
+				var t  = s.getTaskRecord( taskName ).task;
+				var st = stats[ taskName ];
+				rows.append( {
+					name       : taskName,
+					disabled   : t.isDisabled(),
+					runs       : st.totalRuns ?: 0,
+					failures   : st.totalFailures ?: 0,
+					success    : st.totalSuccess ?: 0,
+					lastRun    : st.lastRun ?: "",
+					lastResult : isSimpleValue( st.lastResult ?: "" ) ? ( st.lastResult ?: "" ) : "(value)",
+					period     : t.getPeriod() & " " & t.getTimeUnit()
+				} );
+			}
+			prc.schedulers.append( { name : name, tasks : rows } );
+		}
+		prc.lookAt = [
+			"Console > Tasks does not list these: ColdBox keeps its schedulers in its own scheduler service, not in the BoxLang one BxLens reads. This page is where they are visible.",
+			"Console > Executors: the executors the schedulers run on.",
+			"Console > Threads: the scheduler worker threads and the 25 second tasks that overlap."
+		];
+		event.setView( "schedulers/index" );
+	}
+
+	/** Runs one task now: /schedulers/runNow?scheduler=appScheduler@coldbox&task=refresh-stats */
+	function runNow( event, rc, prc ) {
+		var s = variables.schedulerService.getSchedulers()[ rc.scheduler ];
+		s.getTaskRecord( rc.task ).task.run( true );
+		relocate( "schedulers.index" );
+	}
+
+}

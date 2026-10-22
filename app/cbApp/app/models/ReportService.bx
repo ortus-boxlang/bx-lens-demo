@@ -1,0 +1,29 @@
+/**
+ * Aggregates for the dashboards and the report schedulers.
+ */
+class singleton {
+
+	property name="orderService" inject="OrderService";
+
+	struct function summary() {
+		var t = queryExecute( "SELECT COUNT(*) AS orders, COALESCE( SUM( total ), 0 ) AS revenue FROM orders WHERE status <> 'cancelled'" );
+		return { orders : t.orders, revenue : t.revenue, stale : variables.orderService.staleCount() };
+	}
+
+	query function revenueByCountry() {
+		return queryExecute(
+			"SELECT c.country, COUNT(*) AS orders, SUM( o.total ) AS revenue
+			 FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.status <> 'cancelled' GROUP BY c.country ORDER BY revenue DESC"
+		);
+	}
+
+	/** Builds a report the slow way: the summary, the country table and the heavy self join. */
+	struct function build( numeric extraMs = 0 ) {
+		var out = { summary : summary(), countries : revenueByCountry().recordCount, pairs : variables.orderService.slowReport().pairs };
+		if ( arguments.extraMs ) {
+			sleep( arguments.extraMs );
+		}
+		return out;
+	}
+
+}

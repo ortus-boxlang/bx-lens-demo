@@ -1,0 +1,4 @@
+<bx:output>
+<h1>Nested partials, #prc.depth# deep</h1>
+#renderView( view = 'partials/_level', args = { level : 1, max : prc.depth } )#
+</bx:output>

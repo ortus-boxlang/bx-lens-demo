@@ -1,0 +1,16 @@
+<bx:script>
+	// Rendered by the ColdBox Bootstrap after main.onException, with the status already set to 500.
+	// arguments.controller and oException come from the Bootstrap function this template is included in.
+	if ( cgi.path_info.findNoCase( "/api/" ) ) {
+		header name="Content-Type" value="application/json";
+		writeOutput( jsonSerialize( { error : true, type : oException.getType(), message : oException.getMessage() } ) );
+	} else {
+		try {
+			cbEvent = arguments.controller.getRequestService().getContext();
+			cbEvent.setView( view = "main/error", layout = "Main" );
+			writeOutput( arguments.controller.getRenderer().renderLayout() );
+		} catch ( any e ) {
+			writeOutput( "<h1>Something went wrong</h1><p>" & encodeForHTML( oException.getMessage() ) & "</p>" );
+		}
+	}
+</bx:script>

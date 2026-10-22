@@ -1,0 +1,51 @@
+/**
+ * The error scenarios: each one throws what it says, and ?caught=1 turns it into a normal page.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Errors handler", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			var thrown = {
+				handlerFails    : "DemoHandlerError",
+				modelFails      : "OrderService.UnknownProduct",
+				sqlFails        : "database",
+				nestedFailure   : "DemoNestedError",
+				listenerFails   : "ListenerError"
+			};
+			for ( var action in thrown ) {
+				var expected = thrown[ action ];
+				it( "errors.#action# throws #expected#", () => {
+					expect( () => this.get( "errors." & action ) ).toThrow( type = expected );
+				} );
+			}
+
+			it( "throws a WireBox error for a missing dependency", () => {
+				expect( () => this.get( "errors.wireboxFails" ) ).toThrow();
+			} );
+
+			it( "catches the error and renders a page with ?caught=1", () => {
+				var event = this.get( "errors.handlerFails", { caught : 1 } );
+				expect( event.getCurrentView() ).toBe( "errors/caught" );
+				expect( event.getPrivateValue( "caught" ) ).toInclude( "on purpose" );
+			} );
+
+			it( "fails validation with a 422 view", () => {
+				var event = this.get( "errors.validation", { qty : -1, email : "bad" } );
+				expect( event.getPrivateValue( "validation" ).hasErrors() ).toBeTrue();
+				expect( event.getStatusCode() ).toBe( 422 );
+			} );
+
+			it( "passes validation when the input is good", () => {
+				var event = this.get( "errors.validation", { qty : 2, email : "ada@example.com" } );
+				expect( event.getPrivateValue( "validation" ).hasErrors() ).toBeFalse();
+			} );
+
+		} );
+	}
+
+}

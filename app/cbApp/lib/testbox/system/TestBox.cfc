@@ -1,0 +1,1588 @@
+/**
+ * Copyright Since 2005 TestBox Framework by Luis Majano and Ortus Solutions, Corp
+ * www.ortussolutions.com
+ * ---
+ * Welcome to the next generation of BDD and xUnit testing for BoxLang & CFML applications
+ * The TestBox core class allows you to execute all kinds of test bundles, directories and more.
+ */
+component accessors="true" {
+
+	// The version
+	property name="version";
+	// The codename
+	property name="codename";
+	// The main utility object
+	property name="utility";
+	// The class bundles to test
+	property name="bundles";
+	// The labels used for the testing
+	property name="labels";
+	// The labels excluded from testing
+	property name="excludes";
+	// The reporter attached to this runner
+	property name="reporter";
+	// The configuration options attached to this runner
+	property name="options";
+	// Last TestResult in case runner wants to inspect it
+	property name="result";
+	// Code Coverage Service
+	property name="coverageService";
+	// TestBox Modules Registry
+	property name="modules";
+	// A list of globbing patterns to match bundles to test ONLY! Ex: *Spec|*Test
+	property name="bundlesPattern";
+
+	// Static Variables
+	variables.TESTBOX_PATH            = expandPath( "/testbox" );
+	variables.IS_BOXLANG              = server.keyExists( "boxlang" );
+	variables.IS_CLI                  = variables.IS_BOXLANG && server.boxlang.cliMode ? true : false;
+	variables.DEFAULT_REPORTER        = variables.IS_CLI ? "text" : "simple";
+	variables.DEFAULT_BUNDLES_PATTERN = "*Spec*.cfc|*Test*.cfc|*Spec*.bx|*Test*.bx";
+	// TestBox Info : Modified by the build process.
+	variables.VERSION                 = "7.2.2+23";
+	variables.CODENAME                = "";
+
+	/**
+	 * Constructor
+	 *
+	 * @bundles        The path, list of paths or array of paths of the spec bundle classes to run and test
+	 * @directory      The directory to test which can be a simple mapping path or a struct with the following options: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 * @directories    Same as @directory, but accepts an array or list
+	 * @reporter       The type of reporter to use for the results, by default is uses our 'simple' report. You can pass in a core reporter string type or an instance of a testbox.system.reports.IReporter
+	 * @labels         The list or array of labels that a suite or spec must have in order to execute.
+	 * @excludes       The list or array of labels that a suite or spec must not have in order to execute.
+	 * @options        A structure of configuration options that are optionally used to configure a runner. Use `retries` (numeric) to rerun failing or erroring specs that declare no retries of their own.
+	 * @bundlesPattern A globbing pattern list to match bundles to test ONLY, matches directoryList() filters! Ex: *Spec|*Test
+	 */
+	any function init(
+		any bundles           = [],
+		any directory         = {},
+		any directories       = {},
+		any reporter          = variables.DEFAULT_REPORTER,
+		any labels            = [],
+		any excludes          = [],
+		struct options        = {},
+		string bundlesPattern = variables.DEFAULT_BUNDLES_PATTERN
+	){
+		// Bundles pattern
+		if ( !len( arguments.bundlesPattern ) ) {
+			arguments.bundlesPattern = variables.DEFAULT_BUNDLES_PATTERN;
+		}
+		variables.bundlesPattern = arguments.bundlesPattern;
+		// Utility and mappings
+		variables.utility        = new testbox.system.util.Util();
+		// Coverage Service
+		if ( !structKeyExists( arguments.options, "coverage" ) ) {
+			arguments.options.coverage = {};
+		}
+		variables.coverageService = new testbox.system.coverage.CoverageService( arguments.options.coverage );
+		// reporter
+		variables.reporter        = arguments.reporter;
+		// options
+		variables.options         = arguments.options;
+		// Empty bundles to start
+		variables.bundles         = [];
+		// Modules Init
+		variables.modules         = { "mappings" : {}, "registry" : structNew( "ordered" ) };
+
+		// inflate labels
+		inflateLabels( arguments.labels );
+		// inflate excludes
+		inflateExcludes( arguments.excludes );
+		// Add bundles given (if any)
+		addBundles( arguments.bundles );
+		// Add directory given (if any)
+		addDirectory( arguments.directory );
+		// Add directories given (if any)
+		addDirectories( arguments.directories );
+		// Load TestBox Modules
+		loadTestBoxModules();
+
+		return this;
+	}
+
+	/**
+	 * Load the TestBox Modules
+	 */
+	function loadTestBoxModules(){
+		var modulesPath = variables.TESTBOX_PATH & "/system/modules";
+
+		// Register Modules
+		directoryList( modulesPath, true, "path", "ModuleConfig.cfc" )
+			.map( ( item ) => item.replaceNoCase( "ModuleConfig.cfc", "" ) )
+			.each( ( path ) => {
+				registerModule(
+					"testbox" & arguments.path
+						.replaceNoCase( variables.TESTBOX_PATH, "" )
+						.reReplace( "[\\\/]", ".", "all" )
+						.reReplace( "\.$", "", "all" )
+				);
+			} );
+
+		directoryList( modulesPath, true, "path", "ModuleConfig.bx" )
+			.map( ( item ) => item.replaceNoCase( "ModuleConfig.bx", "" ) )
+			.each( ( path ) => {
+				registerModule(
+					"testbox" & arguments.path
+						.replaceNoCase( variables.TESTBOX_PATH, "" )
+						.reReplace( "[\\\/]", ".", "all" )
+						.reReplace( "\.$", "", "all" )
+				);
+			} );
+
+		// Activate Modules
+		variables.modules.registry.each( ( moduleName, config ) => activateModule( moduleName ) );
+
+		// Register Global Mappings
+		variables.utility.addMapping( mappings: variables.modules.mappings );
+	}
+
+	/**
+	 * Register a module in TestBox
+	 *
+	 * @path The invocationPath path to the module. Ex: tests.resources.myModule
+	 */
+	function registerModule( required path ){
+		var moduleName                                 = listLast( arguments.path, "." );
+		var absolutePath                               = expandPath( "/" & arguments.path.replace( ".", "/", "all" ) );
+		// Register Mapping
+		variables.modules.mappings[ "/" & moduleName ] = absolutePath;
+		// Register Module
+		variables.modules.registry[ moduleName ]       = {
+			"name"              : moduleName,
+			"settings"          : {},
+			"moduleConfig"      : "",
+			"path"              : absolutePath,
+			"loadTime"          : now(),
+			"activationTime"    : 0,
+			"active"            : false,
+			"activationFailure" : {},
+			"mapping"           : moduleName,
+			"invocationPath"    : arguments.path
+		};
+		return this;
+	}
+
+	/**
+	 * Activate a module in TestBox
+	 *
+	 * @name The name of the module to activate
+	 *
+	 * @throws ModuleNotRegisteredException - If the module is not registered
+	 */
+	function activateModule( required name ){
+		// Verify it
+		if ( !variables.modules.registry.keyExists( arguments.name ) ) {
+			throw( "ModuleNotRegisteredException", "The module #arguments.name# is not registered in TestBox" );
+		}
+
+		// If active, skip activation
+		var moduleRecord = variables.modules.registry[ arguments.name ];
+		if ( moduleRecord.active ) {
+			return this;
+		}
+
+		// Create and Decorate ModuleConfig
+		moduleRecord.moduleConfig = variables.utility
+			.getMixerUtil()
+			.start( createObject( "component", moduleRecord.invocationPath & ".ModuleConfig" ) );
+
+		// Inject properties
+		moduleRecord.moduleConfig
+			.injectPropertyMixin( "testbox", this )
+			.injectPropertyMixin( "testboxVersion", variables.version )
+			.injectPropertyMixin( "moduleMapping", moduleRecord.invocationPath )
+			.injectPropertyMixin( "modulePath", moduleRecord.path )
+			.injectPropertyMixin( "getJavaSystem", getEnv().getJavaSystem )
+			.injectPropertyMixin( "getSystemSetting", getEnv().getSystemSetting )
+			.injectPropertyMixin( "getSystemProperty", getEnv().getSystemProperty )
+			.injectPropertyMixin( "getEnv", getEnv().getEnv );
+
+		// Activate it
+		try {
+			moduleRecord.moduleConfig.configure();
+			moduleRecord.settings       = moduleRecord.moduleConfig.getPropertyMixin( "settings", "variables", {} );
+			moduleRecord.active         = true;
+			moduleRecord.activationTime = now();
+			moduleRecord.moduleConfig.onLoad();
+		} catch ( any e ) {
+			moduleRecord.activationFailure = e;
+			// writeDump(
+			// 	var    = "**** Error activating (#arguments.name#) TestBox Module: #e.message & e.detail#",
+			// 	output = "console"
+			// );
+		}
+
+		return this;
+	}
+
+	/**
+	 * Register and activate a TestBox module.  You must pass the full invocation
+	 * path in order to register and activate the module.
+	 *
+	 * @path The invocationPath path to the module. Ex: tests.resources.myModule
+	 */
+	function registerAndActivateModule( required path ){
+		var moduleName = listLast( arguments.path, "." );
+		registerModule( arguments.path ).activateModule( moduleName );
+		variables.utility.addMapping( name: "/" & moduleName, path: variables.modules.registry[ moduleName ].path );
+		return this;
+	}
+
+	/**
+	 * Get only the activated modules registry
+	 *
+	 * @return The struct of activated modules
+	 */
+	struct function getActiveModules(){
+		return variables.modules.registry.filter( ( moduleName, config ) => {
+			return config.active;
+		} );
+	}
+
+	/**
+	 * Get the modules registry
+	 *
+	 * @return The struct of registered modules regardless if they are activated or not
+	 */
+	struct function getModuleRegistry(){
+		return variables.modules.registry;
+	}
+
+	/**
+	 * Get the TestBox Env object
+	 *
+	 * @return testbox.system.util.Env
+	 */
+	function getEnv(){
+		// Lazy Load it
+		if ( !structKeyExists( variables, "env" ) || isNull( variables.env ) ) {
+			variables.env = new testbox.system.util.Env();
+		}
+		return variables.env;
+	}
+
+	/**
+	 * Register a directory to test
+	 *
+	 * @directory A directory to test which can be a simple mapping path or a struct with the following options: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 */
+	any function addDirectory( required any directory, boolean recurse = true ){
+		// inflate directory?
+		if ( isSimpleValue( arguments.directory ) ) {
+			arguments.directory = {
+				mapping : arguments.directory,
+				recurse : arguments.recurse
+			};
+		}
+		// directory passed?
+		if ( !structIsEmpty( arguments.directory ) ) {
+			for ( var bundle in getSpecPaths( arguments.directory ) ) {
+				arrayAppend( variables.bundles, bundle );
+			}
+		}
+		return this;
+	}
+
+	/**
+	 * Constructor
+	 *
+	 * @directories A set of directories to test which can be a list of simple mapping paths or an array of structs with the following options: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 */
+	any function addDirectories( required any directories, boolean recurse = true ){
+		if ( isSimpleValue( arguments.directories ) ) {
+			arguments.directories = listToArray( arguments.directories );
+		}
+		for ( var dir in arguments.directories ) {
+			addDirectory( dir, arguments.recurse );
+		}
+		return this;
+	}
+
+	/**
+	 * Add bundles to the TestBox `bundles` target to test
+	 *
+	 * @bundles The path, list of paths or array of paths of the spec bundle classess to run and test
+	 */
+	any function addBundles( required any bundles ){
+		if ( isSimpleValue( arguments.bundles ) ) {
+			arguments.bundles = listToArray( arguments.bundles );
+		}
+		for ( var bundle in arguments.bundles ) {
+			arrayAppend( variables.bundles, bundle );
+		}
+		return this;
+	}
+
+	/**
+	 * Run me some testing goodness, this can use the constructed object variables or the ones
+	 * you can send right here.
+	 *
+	 * @bundles      The path, list of paths or array of paths of the spec bundle classes to run and test
+	 * @directory    The directory to test which can be a simple mapping path or a struct with the following options: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 * @reporter     The type of reporter to use for the results, by default is uses our 'simple' report. You can pass in a core reporter string type or an instance of a testbox.system.reports.IReporter. You can also pass a struct if the reporter requires options: {type="", options={}}
+	 * @labels       The list or array of labels that a suite or spec must have in order to execute.
+	 * @excludes     The list or array of labels that a suite or spec must not have in order to execute.
+	 * @options      A structure of configuration options that are optionally used to configure a runner. Use `retries` (numeric) to rerun failing or erroring specs that declare no retries of their own.
+	 * @testBundles  A list or array of bundle names that are the ones that will be executed ONLY!
+	 * @testSuites   A list or array of suite names that are the ones that will be executed ONLY!
+	 * @testSpecs    A list or array of test names that are the ones that will be executed ONLY!
+	 * @callbacks    A struct of listener callbacks or a class with callbacks for listening to progress of the testing: onBundleStart,onBundleEnd,onSuiteStart,onSuiteEnd,onSpecStart,onSpecEnd
+	 * @eagerFailure If this boolean is set to true, then execution of more bundle tests will stop once the first failure/error is detected. By default this is false.
+	 */
+	any function run(
+		any bundles,
+		any directory,
+		any reporter,
+		any labels,
+		any excludes,
+		struct options,
+		any testBundles      = [],
+		any testSuites       = [],
+		any testSpecs        = [],
+		any callbacks        = {},
+		boolean eagerFailure = false
+	){
+		// reporter passed?
+		if ( !isNull( arguments.reporter ) ) {
+			variables.reporter = arguments.reporter;
+		}
+		// run it and get results
+		var results      = runRaw( argumentCollection = arguments );
+		// store latest results
+		variables.result = results;
+		// return report
+		var report       = produceReport( results );
+		// set response headers
+		sendStatusHeaders( results );
+
+		return report;
+	}
+
+	/**
+	 * Run me some testing goodness but give you back the raw TestResults object instead of a report
+	 *
+	 * @bundles      The path, list of paths or array of paths of the spec bundle classes to run and test
+	 * @directory    The directory to test which can be a simple mapping path or a struct with the following options: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 * @labels       The list or array of labels that a suite or spec must have in order to execute.
+	 * @excludes     The list or array of labels that a suite or spec must not have in order to execute.
+	 * @options      A structure of configuration options that are optionally used to configure a runner. Use `retries` (numeric) to rerun failing or erroring specs that declare no retries of their own.
+	 * @testBundles  A list or array of bundle names that are the ones that will be executed ONLY!
+	 * @testSuites   A list or array of suite names that are the ones that will be executed ONLY!
+	 * @testSpecs    A list or array of test names that are the ones that will be executed ONLY!
+	 * @callbacks    A struct of listener callbacks or a class with callbacks for listening to progress of the testing: onBundleStart,onBundleEnd,onSuiteStart,onSuiteEnd,onSpecStart,onSpecEnd
+	 * @eagerFailure If this boolean is set to true, then execution of more bundle tests will stop once the first failure/error is detected. By default this is false.
+	 */
+	testbox.system.TestResult function runRaw(
+		any bundles,
+		any directory,
+		any labels,
+		any excludes,
+		struct options,
+		any testBundles      = [],
+		any testSuites       = [],
+		any testSpecs        = [],
+		any callbacks        = {},
+		boolean eagerFailure = false
+	){
+		// inflate options if passed
+		if ( !isNull( arguments.options ) ) {
+			variables.options = arguments.options;
+		}
+		// inflate directory?
+		if ( !isNull( arguments.directory ) && isSimpleValue( arguments.directory ) ) {
+			arguments.directory = { mapping : arguments.directory, recurse : true };
+		}
+		// inflate test bundles, suites and specs from incoming variables.
+		arguments.testBundles = (
+			isSimpleValue( arguments.testBundles ) ? listToArray( arguments.testBundles ) : arguments.testBundles
+		);
+		arguments.testSuites = (
+			isSimpleValue( arguments.testSuites ) ? listToArray( arguments.testSuites ) : arguments.testSuites
+		);
+		arguments.testSpecs = (
+			isSimpleValue( arguments.testSpecs ) ? listToArray( arguments.testSpecs ) : arguments.testSpecs
+		);
+
+		// Verify URL conventions for bundle, suites and specs exclusions.
+		// The `url` scope only exists in a real HTTP request - it isn't registered at all when
+		// TestBox runs via the BoxLang CLI, so even a `structKeyExists( url, ... )` guard throws
+		// (resolving the bare `url` identifier is what fails, not the key lookup within it).
+		// Param it to an empty struct so it's always safe to touch below - a no-op everywhere
+		// the scope already exists (every engine, every non-CLI request).
+		param name="url" default={};
+		if ( structKeyExists( url, "testBundles" ) && !isNull( url.testBundles ) ) {
+			testBundles.append( listToArray( urlDecode( url.testBundles ) ), true );
+		}
+		if ( structKeyExists( url, "testSuites" ) && !isNull( url.testSuites ) ) {
+			arguments.testSuites.append( listToArray( urlDecode( url.testSuites ) ), true );
+		}
+		if ( structKeyExists( url, "testSpecs" ) && !isNull( url.testSpecs ) ) {
+			arguments.testSpecs.append( listToArray( urlDecode( url.testSpecs ) ), true );
+		}
+		if ( structKeyExists( url, "testMethod" ) && !isNull( url.testMethod ) ) {
+			arguments.testSpecs.append( listToArray( urlDecode( url.testMethod ) ), true );
+		}
+
+		// Using a directory runner?
+		if ( !isNull( arguments.directory ) && !structIsEmpty( arguments.directory ) ) {
+			arguments.bundles = getSpecPaths( arguments.directory );
+		}
+
+		// Inflate labels if passed
+		if ( !isNull( arguments.labels ) ) {
+			inflateLabels( arguments.labels );
+		}
+		// Inflate excludes if passed
+		if ( !isNull( arguments.excludes ) ) {
+			inflateExcludes( arguments.excludes );
+		}
+		// If bundles passed, inflate those as the target
+		if ( !isNull( arguments.bundles ) ) {
+			inflateBundles( arguments.bundles );
+		}
+
+		// create results object
+		var results = new testbox.system.TestResult(
+			bundleCount = arrayLen( variables.bundles ),
+			labels      = variables.labels,
+			excludes    = variables.excludes,
+			testBundles = arguments.testBundles,
+			testSuites  = arguments.testSuites,
+			testSpecs   = arguments.testSpecs
+		);
+
+		coverageService.beginCapture();
+
+		// iterate and run the test bundles
+		for ( var thisBundlePath in variables.bundles ) {
+			// Skip interfaces, they are not testable
+			var thisMD = server.keyExists( "boxlang" ) ? getClassMetadata( thisBundlePath ) : getComponentMetadata(
+				thisBundlePath
+			);
+			if ( thisMD.type eq "interface" ) {
+				continue;
+			}
+
+			// Execute Bundle
+			testBundle(
+				bundlePath  = thisBundlePath,
+				testResults = results,
+				callbacks   = arguments.callbacks
+			);
+
+			// Eager Failures on Bundle?
+			if ( arguments.eagerFailure ) {
+				var failuresDetected = results
+					.getBundleStats()
+					// Get stats for running bundle
+					.filter( function( item ){
+						return ( item.path == thisBundlePath ? true : false );
+					} )
+					.reduce( function( result, item ){
+						return ( item.totalError + item.totalFail ) > 0;
+					}, false );
+
+				if ( failuresDetected ) {
+					// Hard skip iterations
+					break;
+				}
+			}
+		}
+
+		// mark end of testing bundles
+		results.end();
+		// mark end of code coverage
+		coverageService.processCoverage( results = results, testbox = this );
+		coverageService.endCapture( true );
+		// Store results
+		variable.result = results;
+
+		// Unload Modules
+		variables.modules.registry.each( ( moduleName, config ) => {
+			if ( config.active ) {
+				config.moduleConfig.onUnload( results );
+			}
+		} );
+
+		return results;
+	}
+
+	/**
+	 * Discover the bundles, suites, and specs that would execute without actually running them.
+	 *
+	 * @testBundles A list or array of bundle names that are the ones that will be executed ONLY!
+	 * @testSuites  A list or array of suite names that are the ones that will be executed ONLY!
+	 * @testSpecs   A list or array of test names that are the ones that will be executed ONLY!
+	 */
+	struct function dryRun(
+		any testBundles = [],
+		any testSuites  = [],
+		any testSpecs   = []
+	){
+		arguments.testBundles = (
+			isSimpleValue( arguments.testBundles ) ? listToArray( arguments.testBundles ) : arguments.testBundles
+		);
+		arguments.testSuites = (
+			isSimpleValue( arguments.testSuites ) ? listToArray( arguments.testSuites ) : arguments.testSuites
+		);
+		arguments.testSpecs = (
+			isSimpleValue( arguments.testSpecs ) ? listToArray( arguments.testSpecs ) : arguments.testSpecs
+		);
+
+		// The `url` scope only exists in a real HTTP request - see the identical param in runRaw().
+		param name="url" default={};
+		if ( structKeyExists( url, "testBundles" ) && !isNull( url.testBundles ) ) {
+			arguments.testBundles.append( listToArray( urlDecode( url.testBundles ) ), true );
+		}
+		if ( structKeyExists( url, "testSuites" ) && !isNull( url.testSuites ) ) {
+			arguments.testSuites.append( listToArray( urlDecode( url.testSuites ) ), true );
+		}
+		if ( structKeyExists( url, "testSpecs" ) && !isNull( url.testSpecs ) ) {
+			arguments.testSpecs.append( listToArray( urlDecode( url.testSpecs ) ), true );
+		}
+		if ( structKeyExists( url, "testMethod" ) && !isNull( url.testMethod ) ) {
+			arguments.testSpecs.append( listToArray( urlDecode( url.testMethod ) ), true );
+		}
+
+		var filterState = new testbox.system.TestResult(
+			bundleCount = arrayLen( variables.bundles ),
+			labels      = variables.labels,
+			excludes    = variables.excludes,
+			testBundles = arguments.testBundles,
+			testSuites  = arguments.testSuites,
+			testSpecs   = arguments.testSpecs
+		);
+		var baseRunner = new testbox.system.runners.BaseRunner();
+		var discovery  = {
+			"type"     : "dry-run",
+			"version"  : variables.version,
+			"labels"   : variables.labels,
+			"excludes" : variables.excludes,
+			"filters"  : {
+				"testBundles" : arguments.testBundles,
+				"testSuites"  : arguments.testSuites,
+				"testSpecs"   : arguments.testSpecs
+			},
+			"summary"           : { "totalBundles" : 0, "totalSuites" : 0, "totalSpecs" : 0 },
+			"bundles"           : [],
+			"bundlesPattern"    : variables.bundlesPattern,
+			"CFMLEngine"        : server.keyExists( "boxlang" ) ? "BoxLang" : server.coldfusion.productName,
+			"CFMLEngineVersion" : (
+				server.keyExists( "boxlang" ) ? server.boxlang.version : server.keyExists( "lucee" ) ? server.lucee.version : server.coldfusion.productVersion
+			)
+		};
+
+		for ( var thisBundlePath in variables.bundles ) {
+			var thisMD = server.keyExists( "boxlang" ) ? getClassMetadata( thisBundlePath ) : getComponentMetadata(
+				thisBundlePath
+			);
+
+			if ( thisMD.type eq "interface" ) {
+				continue;
+			}
+
+			var bundleDiscovery = discoverDryRunBundle(
+				bundlePath  = thisBundlePath,
+				testResults = filterState,
+				baseRunner  = baseRunner
+			);
+
+			if ( !structIsEmpty( bundleDiscovery ) ) {
+				arrayAppend( discovery.bundles, bundleDiscovery );
+				discovery.summary.totalSuites += bundleDiscovery.summary.totalSuites;
+				discovery.summary.totalSpecs += bundleDiscovery.summary.totalSpecs;
+			}
+		}
+
+		discovery.summary.totalBundles = arrayLen( discovery.bundles );
+
+		return discovery;
+	}
+
+	/**
+	 * Run me some testing goodness, remotely via SOAP, Flex, REST, URL
+	 *
+	 * @bundles         The path or list of paths of the spec bundle classes to run and test
+	 * @directory       The directory mapping to test: directory = the path to the directory using dot notation (myapp.testing.specs)
+	 * @recurse         Recurse the directory mapping or not, by default it does
+	 * @reporter        The type of reporter to use for the results, by default is uses our 'simple' report. You can pass in a core reporter string type or a class path to the reporter to use.
+	 * @reporterOptions A JSON struct literal of options to pass into the reporter
+	 * @labels          The list of labels that a suite or spec must have in order to execute.
+	 * @options         A JSON struct literal of configuration options that are optionally used to configure a runner.
+	 * @testBundles     A list or array of bundle names that are the ones that will be executed ONLY!
+	 * @testSuites      A list of suite names that are the ones that will be executed ONLY!
+	 * @testSpecs       A list of test names that are the ones that will be executed ONLY!
+	 * @eagerFailure    If this boolean is set to true, then execution of more bundle tests will stop once the first failure/error is detected. By default this is false.
+	 */
+	remote function runRemote(
+		string bundles,
+		string directory,
+		boolean recurse        = true,
+		string reporter        = "simple",
+		string reporterOptions = "{}",
+		string labels          = "",
+		string excludes        = "",
+		string options,
+		string testBundles   = "",
+		string testSuites    = "",
+		string testSpecs     = "",
+		boolean eagerFailure = false
+	) output=true{
+		// local init
+		init();
+
+		// simple to complex
+		arguments.labels      = listToArray( arguments.labels );
+		arguments.excludes    = listToArray( arguments.excludes );
+		arguments.testBundles = listToArray( arguments.testBundles );
+		arguments.testSuites  = listToArray( arguments.testSuites );
+		arguments.testSpecs   = listToArray( arguments.testSpecs );
+
+		// options inflate from JSON
+		if ( !isNull( arguments.options ) and isJSON( arguments.options ) ) {
+			arguments.options = deserializeJSON( arguments.options );
+		} else {
+			arguments.options = {};
+		}
+
+		// Inflate directory?
+		if ( !isNull( arguments.directory ) and len( arguments.directory ) ) {
+			arguments.directory = {
+				mapping : arguments.directory,
+				recurse : arguments.recurse
+			};
+		}
+
+		// reporter options inflate from JSON
+		if ( !isNull( arguments.reporterOptions ) and isJSON( arguments.reporterOptions ) ) {
+			arguments.reporterOptions = deserializeJSON( arguments.reporterOptions );
+		} else {
+			arguments.reporterOptions = {};
+		}
+
+		// setup reporter
+		if ( !isNull( arguments.reporter ) and len( arguments.reporter ) ) {
+			variables.reporter = {
+				type    : arguments.reporter,
+				options : arguments.reporterOptions
+			};
+		}
+
+		// run it and get results
+		variables.result = runRaw( argumentCollection = arguments );
+
+		// check if reporter is "raw" and if raw, just return it else output the results
+		if ( variables.reporter.type == "raw" ) {
+			return produceReport( variables.result );
+		} else {
+			writeOutput( produceReport( variables.result ) );
+		}
+
+		// create status headers
+		sendStatusHeaders( variables.result );
+	}
+
+	/**
+	 * Send some status headers
+	 */
+	private function sendStatusHeaders( required results ){
+		// If we are not in a web enabled runtime, just skip
+		if ( !getFunctionList().keyExists( "getPageContext" ) ) {
+			return this;
+		}
+		// BoxLang with bx-web-support defines getPageContext() outside of web requests too, such as in the CLI runner, where it throws
+		try {
+			var pageContext = getPageContext();
+		} catch ( Any e ) {
+			return this;
+		}
+		try {
+			var response = pageContext.getResponse();
+			response.addHeader( "x-testbox-totalDuration", javacast( "string", results.getTotalDuration() ) );
+			response.addHeader( "x-testbox-totalBundles", javacast( "string", results.getTotalBundles() ) );
+			response.addHeader( "x-testbox-totalSuites", javacast( "string", results.getTotalSuites() ) );
+			response.addHeader( "x-testbox-totalSpecs", javacast( "string", results.getTotalSpecs() ) );
+			response.addHeader( "x-testbox-totalPass", javacast( "string", results.getTotalPass() ) );
+			response.addHeader( "x-testbox-totalFail", javacast( "string", results.getTotalFail() ) );
+			response.addHeader( "x-testbox-totalError", javacast( "string", results.getTotalError() ) );
+			response.addHeader( "x-testbox-totalSkipped", javacast( "string", results.getTotalSkipped() ) );
+		} catch ( Any e ) {
+			writeLog(
+				type = "error",
+				text = "Error sending TestBox headers: #e.message# #e.detail# #e.stackTrace#",
+				file = "testbox.log"
+			);
+		}
+
+		return this;
+	}
+
+	/************************************** REPORTING COMMON METHODS *********************************************/
+
+	/**
+	 * Build a report according to this runner's setup reporter, which can be anything.
+	 *
+	 * @results The results object to use to produce a report
+	 */
+	private any function produceReport( required results ){
+		var iData = { type : "", options : {} };
+
+		// If the type is a simple value then inflate it
+		if ( isSimpleValue( variables.reporter ) ) {
+			iData = {
+				type    : buildReporter( variables.reporter ),
+				options : variables.options
+			};
+		} else if ( isObject( variables.reporter ) ) {
+			// If the incoming reporter is an object.
+			iData = { type : variables.reporter, options : variables.options };
+		} else if ( isStruct( variables.reporter ) ) {
+			// Do we have reporter type and options
+			iData.type = buildReporter( variables.reporter.type );
+			if ( structKeyExists( variables.reporter, "options" ) ) {
+				iData.options = variables.reporter.options;
+			} else {
+				iData.options = variables.options;
+			}
+		}
+
+		// build the report from the reporter
+		return iData.type.runReport( arguments.results, this, iData.options );
+	}
+
+	/**
+	 * Build a reporter according to passed in reporter type or class path
+	 *
+	 * @reporter The reporter type to build.
+	 */
+	any function buildReporter( required reporter ){
+		switch ( arguments.reporter ) {
+			case "json": {
+				return new "testbox.system.reports.JSONReporter"( );
+			}
+			case "agent": {
+				return new "testbox.system.reports.AgentReporter"( );
+			}
+			case "xml": {
+				return new "testbox.system.reports.XMLReporter"( );
+			}
+			case "raw": {
+				return new "testbox.system.reports.RawReporter"( );
+			}
+			case "simple": {
+				return new "testbox.system.reports.SimpleReporter"( );
+			}
+			case "dot": {
+				return new "testbox.system.reports.DotReporter"( );
+			}
+			case "text": {
+				return new "testbox.system.reports.TextReporter"( );
+			}
+			case "junit": {
+				return new "testbox.system.reports.JUnitReporter"( );
+			}
+			case "antjunit": {
+				return new "testbox.system.reports.ANTJUnitReporter"( );
+			}
+			case "console": {
+				return new "testbox.system.reports.ConsoleReporter"( );
+			}
+			case "min": {
+				return new "testbox.system.reports.MinReporter"( );
+			}
+			case "mintext": {
+				return new "testbox.system.reports.MinTextReporter"( );
+			}
+			case "tap": {
+				return new "testbox.system.reports.TapReporter"( );
+			}
+			case "doc": {
+				return new "testbox.system.reports.DocReporter"( );
+			}
+			case "codexwiki": {
+				return new "testbox.system.reports.CodexWikiReporter"( );
+			}
+			default: {
+				return new "#arguments.reporter#"( );
+			}
+		}
+	}
+
+	/**
+	 * Announce an event to all modules
+	 *
+	 * @event The name of the event to announce
+	 * @args  The arguments to pass to the event: struct or array
+	 */
+	function announceToModules( required event, args = {} ){
+		getActiveModules().each( ( moduleName, config ) => {
+			if ( structKeyExists( config.moduleConfig, event ) ) {
+				invoke( config.moduleConfig, event, args );
+			}
+		} );
+	}
+
+	/***************************************** PRIVATE ************************************************************/
+
+	/**
+	 * This method executes the tests in a bundle class according to type. If the testing was ok a true is returned.
+	 *
+	 * @bundlePath  The path of the Bundle class to test.
+	 * @testResults The testing results object to keep track of results
+	 * @callbacks   The callbacks struct or class
+	 *
+	 * @throws BundleRunnerMajorException
+	 */
+	private function testBundle(
+		required bundlePath,
+		required testResults,
+		required callbacks
+	){
+		// create new target bundle and get its metadata
+		try {
+			var target = getBundle( arguments.bundlePath );
+		}
+		// CFML
+		catch ( "AbstractComponentException" e ) {
+			// Skip abstract components
+			return this;
+		}
+		// BoxLang
+		catch ( "AbstractClassException" e ) {
+			// Skip abstract components
+			return this;
+		}
+
+		// Browser support for bundles with a browser annotation (BoxLang only)
+		var browserSupport = attachBrowserSupport( target );
+
+		// verify call backs
+		if ( structKeyExists( arguments.callbacks, "onBundleStart" ) ) {
+			arguments.callbacks.onBundleStart( target, testResults );
+		}
+		// Module call backs
+		announceToModules( "onBundleStart", { target : target, testResults : testResults } );
+
+		try {
+			// Discover type?
+			if ( structKeyExists( target, "run" ) ) {
+				// Run via BDD Style
+				new testbox.system.runners.BDDRunner( options = variables.options, testbox = this ).run(
+					target,
+					arguments.testResults,
+					arguments.callbacks
+				);
+			} else {
+				// Run via xUnit Style
+				new testbox.system.runners.UnitRunner( options = variables.options, testbox = this ).run(
+					target,
+					arguments.testResults,
+					arguments.callbacks
+				);
+			}
+		} catch ( Any e ) {
+			throw(
+				message = "Error executing bundle - #arguments.bundlePath#  message: #e.message# #e.detail#",
+				detail  = e.stackTrace,
+				type    = "BundleRunnerMajorException"
+			);
+		} finally {
+			// Close the bundle browser, even when an afterAll() threw
+			if ( !isNull( browserSupport ) ) {
+				try {
+					browserSupport.close();
+				} catch ( Any e ) {
+					// Never hide the bundle results: log it, the ledger closes the browser on a later run
+					writeLog(
+						type = "error",
+						text = "Error closing the browser of bundle #arguments.bundlePath#: #e.message# #e.detail#",
+						file = "testbox.log"
+					);
+				}
+			}
+		}
+
+		// Store debug buffer for this bundle
+		arguments.testResults.storeDebugBuffer( target.getDebugBuffer() );
+
+		// verify call backs
+		if ( structKeyExists( arguments.callbacks, "onBundleEnd" ) ) {
+			arguments.callbacks.onBundleEnd( target, testResults );
+		}
+		// Module call backs
+		announceToModules( "onBundleEnd", { target : target, testResults : testResults } );
+
+		return this;
+	}
+
+	/**
+	 * Attach browser support to a bundle whose class, or a class it extends, has a `browser`, `browserProfile`
+	 * or `baseURL` annotation: testbox.system.browser.BrowserSupport mixes browse() and friends into it.
+	 * BoxLang only, as bx-playwright runs on BoxLang.
+	 *
+	 * @target The bundle
+	 *
+	 * @return The attached testbox.system.browser.BrowserSupport, or null when the bundle does not browse
+	 */
+	private any function attachBrowserSupport( required target ){
+		if ( !structKeyExists( server, "boxlang" ) ) {
+			return;
+		}
+		var support = new testbox.system.browser.BrowserSupport( arguments.target );
+		if ( !support.isEnabled() ) {
+			return;
+		}
+		return support.attach();
+	}
+
+	/**
+	 * Creates and returns a bundle class with spec capabilities if not inherited.
+	 *
+	 * @bundlePath The path to the Bundle class
+	 *
+	 * @throws AbstractComponentException - When an abstract component exists as a spec
+	 */
+	private any function getBundle( required bundlePath ){
+		try {
+			var bundle = createObject( "component", "#arguments.bundlePath#" );
+		} catch ( "Application" e ) {
+			if ( findNoCase( "abstract component", e.message ) ) {
+				throw( type: "AbstractComponentException", message: "Skip abstract components" );
+			}
+			rethrow;
+		}
+		var familyPath = "testbox.system.BaseSpec";
+
+		// check if base spec assigned
+		if ( isInstanceOf( bundle, familyPath ) ) {
+			return bundle;
+		}
+
+		// Else virtualize it
+		var baseObject         = new testbox.system.BaseSpec();
+		var excludedProperties = "";
+
+		// Mix it up baby
+		variables.utility.getMixerUtil().start( bundle );
+
+		// Mix in the virtual methods
+		for ( var key in baseObject ) {
+			// If target has overriden method, then don't override it with mixin, simulated inheritance
+			if ( NOT structKeyExists( bundle, key ) AND NOT listFindNoCase( excludedProperties, key ) ) {
+				bundle.injectMixin( key, baseObject[ key ] );
+			}
+		}
+
+		// Mix in the private state the methods rely on, like $assert and $specStatsHolder
+		var baseVariables = variables.utility
+			.getMixerUtil()
+			.start( baseObject )
+			.getVariablesMixin();
+		var bundleVariables = bundle.getVariablesMixin();
+		for ( var key in baseVariables ) {
+			if (
+				!listFindNoCase( "this,super", key )
+				&& !isCustomFunction( baseVariables[ key ] )
+				&& !structKeyExists( bundleVariables, key )
+			) {
+				bundleVariables[ key ] = baseVariables[ key ];
+			}
+		}
+
+		// Mix in virtual super class just in case we need it
+		bundle.$super = baseObject;
+
+		return bundle;
+	}
+
+	/**
+	 * Get an array of spec paths from a directory
+	 *
+	 * @directory The directory information struct to test: [ mapping = the path to the directory using dot notation (myapp.testing.specs), recurse = boolean, filter = closure that receives the path of the class found, it must return true to process or false to continue process ]
+	 */
+	private function getSpecPaths( required directory ){
+		var results            = [];
+		var pathPatternMatcher = new testbox.system.modules.globber.models.PathPatternMatcher();
+
+		// recurse default
+		arguments.directory.recurse = (
+			structKeyExists( arguments.directory, "recurse" ) ? arguments.directory.recurse : true
+		);
+		// clean up paths
+		var bundleExpandedPath = expandPath( "/" & replace( arguments.directory.mapping, ".", "/", "all" ) );
+		bundleExpandedPath     = replace( bundleExpandedPath, "\", "/", "all" );
+
+		// search directory with filters
+		var bundlesFound = directoryList(
+			bundleExpandedPath,
+			arguments.directory.recurse,
+			"path",
+			"",
+			"asc",
+			"file"
+		).filter( ( path ) => {
+			return pathPatternMatcher.matchPatterns( variables.bundlesPattern.listToArray( "|" ), path );
+		} );
+
+		// cleanup paths and store them for usage
+		for ( var x = 1; x lte arrayLen( bundlesFound ); x++ ) {
+			// filter closure exists and the filter does not match the path
+			if (
+				structKeyExists( arguments.directory, "filter" ) && !arguments.directory.filter(
+					bundlesFound[ x ]
+				)
+			) {
+				continue;
+			}
+
+			// If not in BoxLang, skip bx bundles
+			if ( !variables.IS_BOXLANG and bundlesFound[ x ].listLast( "." ) eq "bx" ) {
+				continue;
+			}
+
+			// standardize paths
+			bundlesFound[ x ] = reReplace(
+				reReplaceNoCase( bundlesFound[ x ], "\.(bx|cfc)", "" ),
+				"(\\|/)",
+				"/",
+				"all"
+			);
+			// clean base out of them
+			bundlesFound[ x ] = replace( bundlesFound[ x ], bundleExpandedPath, "" );
+			// Clean out slashes and append the mapping.
+			bundlesFound[ x ] = arguments.directory.mapping & reReplace( bundlesFound[ x ], "(\\|/)", ".", "all" );
+			arrayAppend( results, bundlesFound[ x ] );
+		}
+
+		return results;
+	}
+
+	private struct function discoverDryRunBundle(
+		required string bundlePath,
+		required testbox.system.TestResult testResults,
+		required any baseRunner
+	){
+		try {
+			var target = getBundle( arguments.bundlePath );
+		} catch ( "AbstractComponentException" e ) {
+			return {};
+		} catch ( "AbstractClassException" e ) {
+			return {};
+		}
+
+		var targetMD          = getMetadata( target );
+		var targetAnnotations = targetMD.keyExists( "annotations" ) ? targetMD.annotations : targetMD;
+		var bundleName        = (
+			structKeyExists( targetAnnotations, "displayName" ) ? targetAnnotations.displayname : targetMD.name
+		);
+		var bundleLabels = getMetadataLabels( targetMD );
+
+		// Honor component-level `skip` annotation. If the bundle is marked
+		// as skipped, omit it from the dry-run discovery tree entirely.
+		if ( arguments.baseRunner.getBundleSkip( target ) ) {
+			return {}
+		}
+
+		if (
+			!arguments.baseRunner.canRunBundle(
+				bundlePath  = targetMD.name,
+				testResults = arguments.testResults,
+				targetMD    = targetMD
+			)
+		) {
+			return {};
+		}
+
+		var suites     = [];
+		var bundleType = structKeyExists( target, "run" ) ? "bdd" : "xunit";
+
+		if ( bundleType eq "bdd" ) {
+			target.run( testResults = arguments.testResults, testbox = this );
+			suites = discoverDryRunBDDSuites(
+				suites       = target.$suites,
+				target       = target,
+				testResults  = arguments.testResults,
+				baseRunner   = arguments.baseRunner,
+				bundleLabels = bundleLabels
+			);
+		} else {
+			suites = discoverDryRunXUnitSuites(
+				target       = target,
+				targetMD     = targetMD,
+				testResults  = arguments.testResults,
+				baseRunner   = arguments.baseRunner,
+				bundleLabels = bundleLabels
+			);
+		}
+
+		if ( !arrayLen( suites ) ) {
+			return {};
+		}
+
+		return {
+			"id"      : hash( targetMD.name ),
+			"path"    : targetMD.name,
+			"name"    : bundleName,
+			"type"    : bundleType,
+			"labels"  : bundleLabels,
+			"suites"  : suites,
+			"summary" : {
+				"totalSuites" : countDryRunSuites( suites ),
+				"totalSpecs"  : countDryRunSpecs( suites )
+			}
+		};
+	}
+
+	private array function discoverDryRunBDDSuites(
+		required array suites,
+		required any target,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array bundleLabels
+	){
+		var results = [];
+
+		for ( var thisSuite in arguments.suites ) {
+			var suiteDiscovery = discoverDryRunBDDSuite(
+				suite        = thisSuite,
+				target       = arguments.target,
+				testResults  = arguments.testResults,
+				baseRunner   = arguments.baseRunner,
+				bundleLabels = arguments.bundleLabels
+			);
+
+			if ( !structIsEmpty( suiteDiscovery ) ) {
+				arrayAppend( results, suiteDiscovery );
+			}
+		}
+
+		return results;
+	}
+
+	private struct function discoverDryRunBDDSuite(
+		required struct suite,
+		required any target,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array bundleLabels
+	){
+		if (
+			arguments.suite.skip ||
+			!arguments.baseRunner.canRunSuite(
+				arguments.suite,
+				arguments.testResults,
+				arguments.target
+			)
+		) {
+			return {};
+		}
+
+		var suiteDiscovery = {
+			"id"              : arguments.suite.id,
+			"name"            : arguments.suite.name,
+			"path"            : formatDryRunSuitePath( arguments.suite ),
+			"slug"            : arguments.suite.slug,
+			"labels"          : duplicate( arguments.suite.labels ?: [] ),
+			"effectiveLabels" : getEffectiveSuiteLabels( arguments.suite, arguments.bundleLabels ),
+			"focused"         : arguments.suite.focused,
+			"skip"            : arguments.suite.skip,
+			"specs"           : [],
+			"suites"          : []
+		};
+		var isDirectMatch = isDirectSuiteMatch( arguments.suite, arguments.testResults );
+
+		if ( isDirectMatch ) {
+			for ( var thisSpec in arguments.suite.specs ) {
+				var specDiscovery = discoverDryRunBDDSpec(
+					spec         = thisSpec,
+					suite        = arguments.suite,
+					target       = arguments.target,
+					testResults  = arguments.testResults,
+					baseRunner   = arguments.baseRunner,
+					bundleLabels = arguments.bundleLabels
+				);
+
+				if ( !structIsEmpty( specDiscovery ) ) {
+					arrayAppend( suiteDiscovery.specs, specDiscovery );
+				}
+			}
+		}
+
+		for ( var thisInternalSuite in arguments.suite.suites ) {
+			var internalDiscovery = discoverDryRunBDDSuite(
+				suite        = thisInternalSuite,
+				target       = arguments.target,
+				testResults  = arguments.testResults,
+				baseRunner   = arguments.baseRunner,
+				bundleLabels = arguments.bundleLabels
+			);
+			if ( !structIsEmpty( internalDiscovery ) ) {
+				arrayAppend( suiteDiscovery.suites, internalDiscovery );
+			}
+		}
+
+		if ( !arrayLen( suiteDiscovery.specs ) && !arrayLen( suiteDiscovery.suites ) ) {
+			return {};
+		}
+
+		return suiteDiscovery;
+	}
+
+	private struct function discoverDryRunBDDSpec(
+		required struct spec,
+		required struct suite,
+		required any target,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array bundleLabels
+	){
+		var effectiveLabels = getEffectiveBDDSpecLabels(
+			arguments.spec,
+			arguments.suite,
+			arguments.bundleLabels
+		);
+
+		// Explicitly-skipped specs (xit/xdescribe) are kept in the dry run tree so the UI
+		// can show them as skipped upfront. Only specs excluded by focus/label/canRunSpec
+		// filters are omitted entirely.
+		if (
+			!arguments.spec.skip && (
+				!isDryRunBDDSpecFocused(
+					arguments.spec,
+					arguments.suite,
+					arguments.target,
+					arguments.baseRunner
+				) ||
+				!arguments.baseRunner.canRunLabel( effectiveLabels, arguments.testResults ) ||
+				!arguments.baseRunner.canRunSpec( arguments.spec, arguments.testResults )
+			)
+		) {
+			return {};
+		}
+
+		return {
+			"id"              : arguments.spec.id,
+			"name"            : arguments.spec.name,
+			"displayName"     : arguments.spec.displayName,
+			"labels"          : duplicate( arguments.spec.labels ?: [] ),
+			"effectiveLabels" : effectiveLabels,
+			"focused"         : arguments.spec.focused,
+			"skip"            : arguments.spec.skip
+		};
+	}
+
+	private array function discoverDryRunXUnitSuites(
+		required any target,
+		required any targetMD,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array bundleLabels
+	){
+		var suite = buildDryRunXUnitSuite(
+			target       = arguments.target,
+			targetMD     = arguments.targetMD,
+			testResults  = arguments.testResults,
+			baseRunner   = arguments.baseRunner,
+			bundleLabels = arguments.bundleLabels
+		);
+
+		return structIsEmpty( suite ) ? [] : [ suite ];
+	}
+
+	private struct function buildDryRunXUnitSuite(
+		required any target,
+		required any targetMD,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array bundleLabels
+	){
+		var annotations = arguments.targetMD.keyExists( "annotations" ) ? arguments.targetMD.annotations : arguments.targetMD;
+		var suiteName   = (
+			structKeyExists( annotations, "displayName" ) ? annotations.displayname : arguments.targetMD.name
+		);
+		var suite = {
+			"id"     : hash( arguments.targetMD.name ),
+			"name"   : suiteName,
+			"path"   : "/" & suiteName,
+			"labels" : duplicate( arguments.bundleLabels ),
+			"skip"   : (
+				structKeyExists( annotations, "skip" ) ? ( len( annotations.skip ) ? annotations.skip : true ) : false
+			),
+			"focused" : false,
+			"specs"   : [],
+			"suites"  : []
+		};
+
+		if ( !isBoolean( suite.skip ) && isCustomFunction( arguments.target[ suite.skip ] ) ) {
+			suite.skip = invoke( arguments.target, "#suite.skip#" );
+		}
+
+		if ( arrayLen( arguments.testResults.getLabels() ) ) {
+			suite.skip = !arguments.baseRunner.canRunLabel( suite.labels, arguments.testResults );
+		}
+
+		if (
+			suite.skip ||
+			!arguments.baseRunner.canRunSuite( suite, arguments.testResults, arguments.target )
+		) {
+			return {};
+		}
+
+		suite.specs = discoverDryRunXUnitSpecs(
+			target      = arguments.target,
+			testResults = arguments.testResults,
+			baseRunner  = arguments.baseRunner,
+			suiteLabels = suite.labels
+		);
+
+		return arrayLen( suite.specs ) ? suite : {};
+	}
+
+	private array function discoverDryRunXUnitSpecs(
+		required any target,
+		required testbox.system.TestResult testResults,
+		required any baseRunner,
+		required array suiteLabels
+	){
+		var results     = [];
+		var methodArray = structKeyArray( arguments.target );
+		var index       = 1;
+
+		for ( var thisMethod in methodArray ) {
+			if (
+				(
+					isCustomFunction( arguments.target[ thisMethod ] ) || isClosure(
+						arguments.target[ thisMethod ]
+					)
+				)
+				&&
+				arguments.baseRunner.isValidTestMethod( thisMethod, arguments.target )
+			) {
+				var specMD            = getMetadata( arguments.target[ thisMethod ] );
+				var specAnnotations   = specMD.keyExists( "annotations" ) ? specMD.annotations : specMD;
+				var specDocumentation = specMD.keyExists( "documentation" ) ? specMD.documentation : specMD;
+				var spec              = {
+					"id"          : hash( specMD.name ),
+					"name"        : specMD.name,
+					"displayName" : (
+						structKeyExists( specAnnotations, "displayName" ) ? specAnnotations.displayName : specMD.name
+					),
+					"hint" : ( structKeyExists( specDocumentation, "hint" ) ? specDocumentation : "" ),
+					"skip" : (
+						structKeyExists( specAnnotations, "skip" ) ? (
+							len( specAnnotations.skip ) ? specAnnotations.skip : true
+						) : false
+					),
+					"focused" : (
+						structKeyExists( specAnnotations, "focused" ) ? (
+							len( specAnnotations.focused ) ? specAnnotations.focused : true
+						) : false
+					),
+					"labels" : (
+						structKeyExists( specAnnotations, "labels" ) ? listToArray( specAnnotations.labels ) : []
+					),
+					"order" : (
+						structKeyExists( specAnnotations, "order" ) ? listToArray( specAnnotations.order ) : index++
+					),
+					"expectedException" : (
+						structKeyExists( specAnnotations, "expectedException" ) ? (
+							len( specAnnotations.expectedException ) ? specAnnotations.expectedException : true
+						) : false
+					)
+				};
+
+				if ( !isBoolean( spec.skip ) && isCustomFunction( arguments.target[ spec.skip ] ) ) {
+					spec.skip = invoke( arguments.target, spec.skip );
+				}
+
+				if ( arrayLen( arguments.testResults.getLabels() ) ) {
+					spec.skip = !arguments.baseRunner.canRunLabel( spec.labels, arguments.testResults );
+				}
+
+				if ( spec.skip || !arguments.baseRunner.canRunSpec( spec, arguments.testResults ) ) {
+					continue;
+				}
+
+				var effectiveLabels = duplicate( spec.labels );
+				arrayAppend( effectiveLabels, arguments.suiteLabels, true );
+
+				arrayAppend(
+					results,
+					{
+						"id"              : spec.id,
+						"name"            : spec.name,
+						"displayName"     : spec.displayName,
+						"labels"          : duplicate( spec.labels ),
+						"effectiveLabels" : effectiveLabels,
+						"focused"         : spec.focused,
+						"skip"            : spec.skip
+					}
+				);
+			}
+		}
+
+		return results;
+	}
+
+	private boolean function isDirectSuiteMatch( required suite, required testResults ){
+		var testSuites    = arguments.testResults.getTestSuites();
+		var isDirectMatch = true;
+
+		if ( arrayLen( testSuites ) ) {
+			isDirectMatch = arrayFindNoCase( testSuites, arguments.suite.name ) > 0;
+
+			if ( !isDirectMatch && len( arguments.suite.slug ) ) {
+				var slugArray = listToArray( arguments.suite.slug, "/" );
+				for ( var thisSlug in slugArray ) {
+					if ( arrayFindNoCase( testSuites, thisSlug ) ) {
+						isDirectMatch = true;
+						break;
+					}
+				}
+			}
+		}
+
+		return isDirectMatch;
+	}
+
+	private boolean function isDryRunBDDSpecFocused(
+		required struct spec,
+		required struct suite,
+		required any target,
+		required any baseRunner
+	){
+		if (
+			arrayLen( arguments.target.$focusedTargets.specs ) == 0 && arrayLen(
+				arguments.target.$focusedTargets.suites
+			) == 0
+		) {
+			return true;
+		}
+
+		var specPath = formatDryRunSuitePath( arguments.suite ) & "/" & arguments.spec.name;
+
+		if (
+			arrayLen( arguments.target.$focusedTargets.specs ) && arrayFindNoCase(
+				arguments.target.$focusedTargets.specs,
+				specPath
+			)
+		) {
+			return true;
+		}
+
+		if ( arrayLen( arguments.target.$focusedTargets.suites ) ) {
+			return arguments.baseRunner.isSuiteFocused(
+				suite         = arguments.suite,
+				target        = arguments.target,
+				checkChildren = false
+			);
+		}
+
+		return false;
+	}
+
+	private array function getEffectiveSuiteLabels( required struct suite, required array bundleLabels ){
+		var effectiveLabels = duplicate( arguments.bundleLabels );
+		var currentSuite    = arguments.suite;
+
+		while ( !isSimpleValue( currentSuite ) ) {
+			arrayAppend( effectiveLabels, currentSuite.labels, true );
+			currentSuite = currentSuite.parentRef;
+		}
+
+		return effectiveLabels;
+	}
+
+	private array function getEffectiveBDDSpecLabels(
+		required struct spec,
+		required struct suite,
+		required array bundleLabels
+	){
+		var consolidatedLabels = [];
+		if ( structKeyExists( arguments.spec, "labels" ) ) {
+			consolidatedLabels = duplicate( arguments.spec.labels );
+		}
+		arrayAppend(
+			consolidatedLabels,
+			arguments.bundleLabels,
+			true
+		);
+		var parentSuite = arguments.suite;
+
+		while ( !isSimpleValue( parentSuite ) ) {
+			arrayAppend( consolidatedLabels, parentSuite.labels, true );
+			parentSuite = parentSuite.parentRef;
+		}
+
+		return consolidatedLabels;
+	}
+
+	private array function getMetadataLabels( required struct metadata ){
+		var annotations = arguments.metadata.keyExists( "annotations" ) ? arguments.metadata.annotations : arguments.metadata;
+
+		if ( !structKeyExists( annotations, "labels" ) || !len( annotations.labels ) ) {
+			return [];
+		}
+
+		return isSimpleValue( annotations.labels ) ? listToArray( annotations.labels ) : duplicate(
+			annotations.labels
+		);
+	}
+
+	private string function formatDryRunSuitePath( required struct suite ){
+		return len( arguments.suite.slug ) ? arguments.suite.slug & "/" & arguments.suite.name : "/" & arguments.suite.name;
+	}
+
+	private numeric function countDryRunSuites( required array suites ){
+		var count = 0;
+
+		for ( var thisSuite in arguments.suites ) {
+			count++;
+			if ( arrayLen( thisSuite.suites ?: [] ) ) {
+				count += countDryRunSuites( thisSuite.suites );
+			}
+		}
+
+		return count;
+	}
+
+	private numeric function countDryRunSpecs( required array suites ){
+		var count = 0;
+
+		for ( var thisSuite in arguments.suites ) {
+			count += arrayLen( thisSuite.specs ?: [] );
+			if ( arrayLen( thisSuite.suites ?: [] ) ) {
+				count += countDryRunSpecs( thisSuite.suites );
+			}
+		}
+
+		return count;
+	}
+
+	/**
+	 * Inflate incoming labels from a simple string as a standard array
+	 */
+	private function inflateLabels( required any labels ){
+		variables.labels = ( isSimpleValue( arguments.labels ) ? listToArray( arguments.labels ) : arguments.labels );
+	}
+
+	/**
+	 * Inflate incoming excludes from a simple string as a standard array
+	 */
+	private function inflateExcludes( required any excludes ){
+		variables.excludes = (
+			isSimpleValue( arguments.excludes ) ? listToArray( arguments.excludes ) : arguments.excludes
+		);
+	}
+
+	/**
+	 * Inflate incoming bundles from a simple string as a standard array
+	 */
+	private function inflateBundles( required any bundles ){
+		variables.bundles = (
+			isSimpleValue( arguments.bundles ) ? listToArray( arguments.bundles ) : arguments.bundles
+		);
+	}
+
+}

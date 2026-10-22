@@ -1,0 +1,20 @@
+/**
+ * Test data on demand with cbmockdata: random customers as JSON.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="mockdata" inject="MockData@cbmockdata";
+
+	/** GET /data/customers?n=5 */
+	function customers( event, rc, prc ) {
+		return variables.mockdata.mock(
+			$num = min( val( rc.n ?: 5 ), 100 ),
+			id   = "autoincrement",
+			name = "name",
+			email = "email",
+			country = "words:1",
+			createdAt = "datetime"
+		);
+	}
+
+}

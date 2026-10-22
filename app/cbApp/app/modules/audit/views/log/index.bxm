@@ -1,0 +1,11 @@
+<bx:output>
+<h1>Audit log</h1>
+<p><bx:loop collection="#prc.rollup#" item="k"><span class="pill">#k#: #prc.rollup[ k ]#</span> </bx:loop>
+<a class="btn reset" href="/cbApp/public/index.bxm/audit/log/purge">Clear</a></p>
+<table>
+	<tr><th>When</th><th>Kind</th><th>Detail</th><th>ms</th></tr>
+	<bx:loop array="#prc.entries#" item="e">
+		<tr><td>#timeFormat( e.at, 'HH:mm:ss' )#</td><td>#e.kind#</td><td>#encodeForHTML( e.detail )#</td><td>#e.ms#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>

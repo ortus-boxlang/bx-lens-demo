@@ -1,0 +1,17 @@
+class extends="coldbox.system.EventHandler" {
+
+	property name="auditLog" inject="AuditLog@audit";
+
+	function index( event, rc, prc ) {
+		prc.entries = variables.auditLog.list( 100 );
+		prc.rollup  = variables.auditLog.rollup();
+		prc.lookAt  = [ "The interceptor adds a few microseconds to every request: look at the timeline of any page for its span." ];
+		event.setView( "log/index" );
+	}
+
+	function purge( event, rc, prc ) {
+		variables.auditLog.purge( 0 );
+		relocate( "audit:log.index" );
+	}
+
+}

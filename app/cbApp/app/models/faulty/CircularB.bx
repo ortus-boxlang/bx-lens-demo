@@ -1,0 +1,8 @@
+class {
+
+	function init( required CircularA a inject="faulty.CircularA" ) {
+		variables.a = arguments.a;
+		return this;
+	}
+
+}

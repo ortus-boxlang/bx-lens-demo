@@ -1,0 +1,55 @@
+/**
+ * What the injector is doing right now. Shared by the interceptor, the panel and the schedulers.
+ */
+class singleton {
+
+	property name="log" inject="logbox:logger:{this}";
+
+	variables.state = { mode : "off", rate : 25, latencyMs : 1500, until : "", injectedLatency : 0, injectedErrors : 0 };
+
+	struct function snapshot() {
+		return duplicate( variables.state );
+	}
+
+	function set( required string mode, numeric rate = 25, numeric latencyMs = 1500, numeric minutes = 5 ) {
+		variables.state.mode      = arguments.mode;
+		variables.state.rate      = max( 1, min( 100, arguments.rate ) );
+		variables.state.latencyMs = max( 0, min( 8000, arguments.latencyMs ) );
+		variables.state.until     = arguments.mode == "off" ? "" : dateAdd( "n", max( 1, arguments.minutes ), now() );
+		variables.log.warn( "Fault mode #arguments.mode# at #variables.state.rate# percent for #arguments.minutes# minutes" );
+	}
+
+	function reset() {
+		variables.state.mode  = "off";
+		variables.state.until = "";
+	}
+
+	boolean function isActive() {
+		if ( variables.state.mode == "off" ) {
+			return false;
+		}
+		if ( isDate( variables.state.until ) && now() > variables.state.until ) {
+			reset();
+			return false;
+		}
+		return true;
+	}
+
+	/** Called by the interceptor for each request that is not exempt. Returns "none", "latency" or "error". */
+	string function decide() {
+		if ( !isActive() || randRange( 1, 100 ) > variables.state.rate ) {
+			return "none";
+		}
+		if ( variables.state.mode == "latency" ) {
+			variables.state.injectedLatency++;
+			return "latency";
+		}
+		if ( variables.state.mode == "errors" || randRange( 1, 2 ) == 1 ) {
+			variables.state.injectedErrors++;
+			return "error";
+		}
+		variables.state.injectedLatency++;
+		return "latency";
+	}
+
+}

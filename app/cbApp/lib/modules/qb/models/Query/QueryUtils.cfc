@@ -1,0 +1,1273 @@
+/**
+ * A collection of query utilities shared across multiple models
+ */
+component singleton displayname="QueryUtils" accessors="true" {
+
+    /**
+     * LogBox logging instance
+     */
+    property name="log" inject="logbox:logger:{this}";
+
+    /**
+     * If true, empty strings are converted to nulls.
+     */
+    property name="convertEmptyStringsToNull" default="false";
+
+    /**
+     * If true, invalid keys in query param structs throw a helpful exception.
+     */
+    property name="validateQueryParamStructKeys" default="true";
+
+    /**
+     * Allow overriding default integer numeric SQL type inferral.
+     */
+    property name="integerSQLType" default="INTEGER";
+
+    /**
+     * Allow overriding default big integer numeric SQL type inferral.
+     */
+    property name="bigIntegerSQLType" default="BIGINT";
+
+    /**
+     * Allow overriding default decimal numeric SQL type inferral.
+     */
+    property name="decimalSQLType" default="DECIMAL";
+
+    /**
+     * Throw when numeric array types cannot be combined without potential precision loss.
+     * Recommended in development; otherwise inference falls back to VARCHAR.
+     */
+    property name="throwOnUnsafeNumericInference" default="false";
+
+    variables.numericValueTypes = {
+        "AtomicInteger": true,
+        "AtomicLong": true,
+        "BigDecimal": true,
+        "BigInteger": true,
+        "Byte": true,
+        "CFDouble": true,
+        "Double": true,
+        "DoubleAccumulator": true,
+        "DoubleAdder": true,
+        "Float": true,
+        "Integer": true,
+        "Long": true,
+        "LongAccumulator": true,
+        "LongAdder": true,
+        "Short": true
+    };
+
+    variables.dateValueTypes = {
+        "Date": true,
+        "DateTime": true,
+        "DateTimeImpl": true,
+        "OleDateTime": true,
+        "Time": true,
+        "Timestamp": true
+    };
+
+    variables.booleanValueTypes = { "CFBoolean": true, "Boolean": true };
+
+    variables.validQueryParamKeys = {
+        "cfsqltype": true,
+        "list": true,
+        "maxlength": true,
+        "name": true,
+        "null": true,
+        "nulls": true,
+        "sqltype": true,
+        "separator": true,
+        "scale": true,
+        "value": true
+    };
+
+    /**
+     * Creates a new QueryUtils helper.
+     * @return               qb.models.Query.QueryUtils
+     */
+    public QueryUtils function init(
+        boolean convertEmptyStringsToNull = false,
+        boolean validateQueryParamStructKeys = true,
+        string integerSqlType = "INTEGER",
+        string decimalSqlType = "DECIMAL",
+        any log,
+        string bigIntegerSqlType = "BIGINT",
+        boolean throwOnUnsafeNumericInference = false
+    ) {
+        variables.convertEmptyStringsToNull = arguments.convertEmptyStringsToNull;
+        variables.validateQueryParamStructKeys = arguments.validateQueryParamStructKeys;
+        variables.integerSqlType = arguments.integerSqlType;
+        variables.bigIntegerSqlType = arguments.bigIntegerSqlType;
+        variables.throwOnUnsafeNumericInference = arguments.throwOnUnsafeNumericInference;
+        variables.decimalSqlType = arguments.decimalSqlType;
+        if ( !isNull( arguments.log ) ) {
+            variables.log = arguments.log;
+        } else {
+            variables.log = new qb.models.Support.NullLogger();
+        }
+        return this;
+    }
+
+    /**
+     * Extract a binding from a value.
+     *
+     * @value The value from which to extract the binding
+     *
+     * @return any
+     */
+    public any function extractBinding( any value, required any grammar ) {
+        if (
+            isNull( arguments.value ) || (
+                variables.convertEmptyStringsToNull && isSimpleValue( arguments.value ) && !len( arguments.value )
+            )
+        ) {
+            return {
+                "cfsqltype": "VARCHAR",
+                "sqltype": "VARCHAR",
+                "value": "",
+                "null": true
+            };
+        }
+
+        if ( isBuilder( arguments.value ) ) {
+            return arguments.value.getBindings();
+        }
+
+        var binding = {};
+        if ( isStruct( value ) ) {
+            if ( structKeyExists( value, "isExpression" ) && value.isExpression == true ) {
+                return value;
+            }
+
+            var invalidKeys = [];
+            for ( var key in value ) {
+                if (
+                    variables.validateQueryParamStructKeys &&
+                    !variables.validQueryParamKeys.keyExists( key )
+                ) {
+                    invalidKeys.append( key );
+                }
+                binding[ key ] = isNull( value[ key ] ) ? javacast( "null", "" ) : value[ key ];
+            }
+            if ( !invalidKeys.isEmpty() ) {
+                throw(
+                    type = "QBInvalidQueryParam",
+                    message = "Invalid keys detected in your query param struct: [#invalidKeys.sort( "textnocase" ).toList( ", " )#]. Usually this happens when you meant to serialize the struct to JSON first."
+                );
+            }
+        } else {
+            binding = { value: normalizeSqlValue( value ) };
+        }
+
+        if (
+            !structKeyExists( binding, "value" ) &&
+            structKeyExists( binding, "null" ) &&
+            binding.null
+        ) {
+            binding.value = "";
+        }
+
+        if ( structKeyExists( binding, "sqltype" ) && !structKeyExists( binding, "cfsqltype" ) ) {
+            param binding.cfsqltype = binding.sqltype;
+        }
+
+        if ( structKeyExists( binding, "cfsqltype" ) && !structKeyExists( binding, "sqltype" ) ) {
+            param binding.sqltype = binding.cfsqltype;
+        }
+
+        if ( !structKeyExists( binding, "cfsqltype" ) ) {
+            var valueType = isArray( binding.value ) || isStruct( binding.value )
+             ? javacast( "null", "" )
+             : listLast( toString( getMetadata( binding.value ) ), ". " );
+            if ( !isNull( valueType ) && variables.booleanValueTypes.keyExists( valueType ) ) {
+                structAppend( binding, arguments.grammar.convertToBooleanType( binding.value ), true );
+            } else {
+                binding.sqltype = isNull( valueType )
+                 ? inferSqlType( binding.value, arguments.grammar )
+                 : inferSqlType( binding.value, arguments.grammar, valueType );
+                binding.cfsqltype = binding.sqltype;
+            }
+        }
+
+        structAppend( binding, { list: false, null: false }, false );
+        if ( binding.null && ( !binding.keyExists( "value" ) || isNull( binding.value ) ) ) {
+            binding.value = "";
+        }
+
+        if ( !binding.null && binding.cfsqltype == "TIMESTAMP" ) {
+            binding.value = isBoxLang() ? dateTimeFormat( binding.value, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX" ) : dateTimeFormat(
+                binding.value,
+                "yyyy-mm-dd'T'HH:nn:ss.lllXXX"
+            );
+        } else if ( !binding.null && binding.cfsqltype == "DATE" ) {
+            binding.value = dateFormat( binding.value, "yyyy-MM-dd" );
+        } else if ( !binding.null && binding.cfsqltype == "TIME" ) {
+            binding.value = timeFormat( binding.value, "HH:mm:ss.nZ" );
+        }
+        if ( isFloatingPoint( binding ) ) {
+            // `max()` returns a Double, and Adobe CF treats a non-integer scale as 0.
+            param binding.scale = javacast( "int", calculateNumberOfDecimalDigits( binding ) );
+        }
+
+        // binding.sqltype = replace( binding.cfsqltype, "", "" );
+        // binding.cfsqltype = binding.sqltype;
+
+        return binding;
+    }
+
+    /**
+     * Replace the question marks (?) in a sql string with the bindings provided.
+     *
+     * @sql      The sql string to replace the bindings in.
+     * @bindings The bindings to replace the question marks with.
+     * @inline   Whether or not to inline the bindings.
+     * @grammar  The active grammar, used to distinguish dialect operators, comments, and identifiers.
+     *
+     * @return   string
+     */
+    public string function replaceBindings(
+        required string sql,
+        required array bindings,
+        boolean inline = false,
+        any grammar
+    ) {
+        var output = [];
+        var index = 1;
+        var position = 1;
+        var state = "sql";
+        var dollarQuoteDelimiter = "";
+        var sqlLength = len( arguments.sql );
+        var resolvedGrammar = isNull( arguments.grammar )
+         ? javacast( "null", "" )
+         : arguments.grammar.getResolvedGrammar();
+        var isMySQL = !isNull( resolvedGrammar ) && isInstanceOf( resolvedGrammar, "qb.models.Grammars.MySQLGrammar" );
+        var isPostgres = !isNull( resolvedGrammar ) && isInstanceOf(
+            resolvedGrammar,
+            "qb.models.Grammars.PostgresGrammar"
+        );
+        var isOracle = !isNull( resolvedGrammar ) && isInstanceOf( resolvedGrammar, "qb.models.Grammars.OracleGrammar" );
+        var isSQLite = !isNull( resolvedGrammar ) && isInstanceOf( resolvedGrammar, "qb.models.Grammars.SQLiteGrammar" );
+        var isSqlServer = !isNull( resolvedGrammar ) && isInstanceOf(
+            resolvedGrammar,
+            "qb.models.Grammars.SqlServerGrammar"
+        );
+        var blockCommentDepth = 0;
+        var oracleQuoteClosing = "";
+        var quoteUsesBackslashEscapes = false;
+
+        while ( position <= sqlLength ) {
+            var character = mid( arguments.sql, position, 1 );
+            var nextCharacter = position < sqlLength ? mid( arguments.sql, position + 1, 1 ) : "";
+
+            if ( state == "lineComment" ) {
+                output.append( character );
+                if ( character == chr( 10 ) || character == chr( 13 ) ) {
+                    state = "sql";
+                }
+                position++;
+                continue;
+            }
+
+            if ( state == "blockComment" ) {
+                output.append( character );
+                if ( isPostgres && character == "/" && nextCharacter == "*" ) {
+                    output.append( nextCharacter );
+                    position += 2;
+                    blockCommentDepth++;
+                } else if ( character == "*" && nextCharacter == "/" ) {
+                    output.append( nextCharacter );
+                    position += 2;
+                    blockCommentDepth--;
+                    if ( blockCommentDepth == 0 ) {
+                        state = "sql";
+                    }
+                } else {
+                    position++;
+                }
+                continue;
+            }
+
+            if ( state == "dollarQuote" ) {
+                if (
+                    mid( arguments.sql, position, len( dollarQuoteDelimiter ) ) ==
+                    dollarQuoteDelimiter
+                ) {
+                    output.append( dollarQuoteDelimiter );
+                    position += len( dollarQuoteDelimiter );
+                    state = "sql";
+                } else {
+                    output.append( character );
+                    position++;
+                }
+                continue;
+            }
+
+            if ( state == "oracleQuote" ) {
+                if ( mid( arguments.sql, position, len( oracleQuoteClosing ) ) == oracleQuoteClosing ) {
+                    output.append( oracleQuoteClosing );
+                    position += len( oracleQuoteClosing );
+                    state = "sql";
+                } else {
+                    output.append( character );
+                    position++;
+                }
+                continue;
+            }
+
+            if ( state != "sql" ) {
+                output.append( character );
+                if (
+                    state != "bracketQuote" &&
+                    quoteUsesBackslashEscapes &&
+                    character == chr( 92 ) &&
+                    nextCharacter != ""
+                ) {
+                    output.append( nextCharacter );
+                    position += 2;
+                    continue;
+                }
+
+                var closingCharacter = state == "singleQuote" ? "'" : (
+                    state == "doubleQuote" ? """" : ( state == "backtickQuote" ? chr( 96 ) : "]" )
+                );
+                if ( character == closingCharacter ) {
+                    if ( nextCharacter == closingCharacter ) {
+                        output.append( nextCharacter );
+                        position += 2;
+                    } else {
+                        position++;
+                        state = "sql";
+                    }
+                } else {
+                    position++;
+                }
+                continue;
+            }
+
+            var startsLineComment = character == "-" &&
+            nextCharacter == "-" &&
+            (
+                !isMySQL ||
+                position + 2 > sqlLength ||
+                asc( mid( arguments.sql, position + 2, 1 ) ) <= 32
+            );
+            if ( startsLineComment ) {
+                output.append( character );
+                output.append( nextCharacter );
+                position += 2;
+                state = "lineComment";
+                continue;
+            }
+
+            if ( isMySQL && character == "##" ) {
+                output.append( character );
+                position++;
+                state = "lineComment";
+                continue;
+            }
+
+            if ( character == "/" && nextCharacter == "*" ) {
+                output.append( character );
+                output.append( nextCharacter );
+                position += 2;
+                state = "blockComment";
+                blockCommentDepth = 1;
+                continue;
+            }
+
+            if ( ( isNull( arguments.grammar ) || isPostgres ) && character == "$" ) {
+                var dollarQuoteMatch = reFind(
+                    "^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$",
+                    mid( arguments.sql, position, sqlLength - position + 1 ),
+                    1,
+                    true
+                );
+                if ( dollarQuoteMatch.len[ 1 ] > 0 ) {
+                    var candidateDelimiter = mid( arguments.sql, position, dollarQuoteMatch.len[ 1 ] );
+                    if ( find( candidateDelimiter, arguments.sql, position + len( candidateDelimiter ) ) > 0 ) {
+                        dollarQuoteDelimiter = candidateDelimiter;
+                        output.append( dollarQuoteDelimiter );
+                        position += len( dollarQuoteDelimiter );
+                        state = "dollarQuote";
+                        continue;
+                    }
+                }
+            }
+
+            if (
+                isOracle &&
+                ( character == "q" || character == "Q" ) &&
+                nextCharacter == "'" &&
+                position + 2 <= sqlLength
+            ) {
+                var oracleQuoteOpening = mid( arguments.sql, position + 2, 1 );
+                var oracleQuotePairs = {
+                    "[": "]",
+                    "{": "}",
+                    "(": ")",
+                    "<": ">"
+                };
+                oracleQuoteClosing = (
+                    oracleQuotePairs.keyExists( oracleQuoteOpening )
+                     ? oracleQuotePairs[ oracleQuoteOpening ]
+                     : oracleQuoteOpening
+                ) & "'";
+                output.append( mid( arguments.sql, position, 3 ) );
+                position += 3;
+                state = "oracleQuote";
+                continue;
+            }
+
+            if (
+                character == "'" ||
+                character == """" ||
+                character == chr( 96 ) ||
+                ( ( isSqlServer || isSQLite ) && character == "[" )
+            ) {
+                output.append( character );
+                state = character == "'" ? "singleQuote" : (
+                    character == """" ? "doubleQuote" : ( character == chr( 96 ) ? "backtickQuote" : "bracketQuote" )
+                );
+                quoteUsesBackslashEscapes = isNull( resolvedGrammar ) ||
+                isMySQL ||
+                (
+                    isPostgres &&
+                    ( character == "'" || character == """" ) &&
+                    isPostgresBackslashEscapedQuote( arguments.sql, position, character )
+                );
+                position++;
+                continue;
+            }
+
+            if ( character == "?" ) {
+                if ( isPostgres && isPostgresQuestionMarkOperator( arguments.sql, position ) ) {
+                    output.append( character );
+                    position++;
+                    continue;
+                }
+                if ( index > arguments.bindings.len() ) {
+                    throw(
+                        type = "BindingMismatch",
+                        message = "The SQL contains more parameter placeholders than supplied bindings."
+                    );
+                }
+                output.append( formatBindingForDisplay( arguments.bindings[ index ], arguments.inline ) );
+                index++;
+                position++;
+                continue;
+            }
+
+            output.append( character );
+            position++;
+        }
+
+        if ( index <= arguments.bindings.len() ) {
+            throw(
+                type = "BindingMismatch",
+                message = "The supplied bindings contain more values than the SQL parameter placeholders."
+            );
+        }
+
+        return output.toList( "" );
+    }
+
+    /**
+     * Detects PostgreSQL escape and Unicode-escape string or identifier prefixes.
+     */
+    private boolean function isPostgresBackslashEscapedQuote(
+        required string sql,
+        required numeric position,
+        required string quote
+    ) {
+        if ( arguments.position <= 1 ) {
+            return false;
+        }
+
+        var prefix = left( arguments.sql, arguments.position - 1 );
+        var escapePrefix = arguments.quote == "'" ? "(?:E|U&)" : "U&";
+        return reFindNoCase( "(^|[^A-Za-z0-9_$])#escapePrefix#$", prefix ) > 0;
+    }
+
+    /**
+     * Determines whether a PostgreSQL question mark is a JSON existence operator instead of a parameter placeholder.
+     */
+    private boolean function isPostgresQuestionMarkOperator( required string sql, required numeric position ) {
+        var sqlLength = len( arguments.sql );
+        var immediateNext = arguments.position < sqlLength ? mid( arguments.sql, arguments.position + 1, 1 ) : "";
+        if ( immediateNext == "|" || immediateNext == "&" ) {
+            return true;
+        }
+
+        var previousPosition = arguments.position - 1;
+        while ( previousPosition > 0 && reFind( "\s", mid( arguments.sql, previousPosition, 1 ) ) ) {
+            previousPosition--;
+        }
+        var nextPosition = arguments.position + 1;
+        while ( nextPosition <= sqlLength && reFind( "\s", mid( arguments.sql, nextPosition, 1 ) ) ) {
+            nextPosition++;
+        }
+        if ( previousPosition == 0 || nextPosition > sqlLength ) {
+            return false;
+        }
+
+        var previousCharacter = mid( arguments.sql, previousPosition, 1 );
+        var nextCharacter = mid( arguments.sql, nextPosition, 1 );
+        if (
+            !reFind( "[A-Za-z0-9_)\]""'#chr( 96 )#]", previousCharacter ) ||
+            !reFind( "[A-Za-z0-9_(\[""'$?#chr( 96 )#]", nextCharacter )
+        ) {
+            return false;
+        }
+
+        var previousSql = left( arguments.sql, previousPosition );
+        var previousWord = reReplace( previousSql, "(?s)^.*?([A-Za-z_][A-Za-z0-9_]*)$", "\1" );
+        if ( previousWord == previousSql && !reFind( "^[A-Za-z_][A-Za-z0-9_]*$", previousSql ) ) {
+            previousWord = "";
+        }
+
+        return !listFindNoCase(
+            "SELECT,WHERE,AND,OR,WHEN,THEN,ELSE,CASE,ON,HAVING,BY,VALUES,VALUE,SET,RETURNING,AS,DISTINCT,LIMIT,OFFSET,FETCH,FIRST,NEXT,ROWS,ROW,IN,NOT,LIKE,ILIKE,IS,AT,FROM,JOIN,USING,INTO,UPDATE,INSERT,DELETE,OVER,PARTITION,ESCAPE,UNION,ALL",
+            previousWord
+        );
+    }
+
+    /**
+     * Formats a single binding for diagnostic SQL output.
+     */
+    private string function formatBindingForDisplay( required any binding, boolean inline = false ) {
+        if ( !isStruct( arguments.binding ) ) {
+            return castAsSqlType( value = arguments.binding, sqltype = "varchar" );
+        }
+
+        if ( arguments.inline ) {
+            return castAsSqlType(
+                value = arguments.binding.null ? javacast( "null", "" ) : arguments.binding.value,
+                sqltype = arguments.binding.cfsqltype
+            );
+        }
+
+        var orderedBinding = structNew( "ordered" );
+        for ( var type in [ "value", "cfsqltype", "null" ] ) {
+            orderedBinding[ type ] = arguments.binding[ type ];
+        }
+        if ( isBinary( orderedBinding.value ) ) {
+            orderedBinding.value = toBase64( orderedBinding.value );
+        }
+        return serializeJSON( orderedBinding );
+    }
+
+    /**
+     * Infer the correct type from a value.
+     *
+     * @value     The value from which to infer the type.
+     * @valueType A previously resolved runtime type for the value.
+     *
+     * @return string
+     */
+    public string function inferSqlType( any value, required any grammar, string valueType ) {
+        if ( isNull( arguments.value ) ) {
+            return "VARCHAR";
+        }
+
+        if ( isArray( value ) ) {
+            var inferredTypes = {};
+            for ( var valueIndex = 1; valueIndex <= arguments.value.len(); valueIndex++ ) {
+                if ( !arrayIsDefined( arguments.value, valueIndex ) || isNull( arguments.value[ valueIndex ] ) ) {
+                    continue;
+                }
+                var item = arguments.value[ valueIndex ];
+                if ( isStruct( item ) && item.keyExists( "null" ) && item.null ) {
+                    continue;
+                }
+                var itemType = inferSqlType( item, arguments.grammar );
+                inferredTypes[ itemType ] = true;
+            }
+            if ( inferredTypes.isEmpty() ) {
+                return "VARCHAR";
+            }
+            if ( inferredTypes.count() == 1 ) {
+                return inferredTypes.keyArray()[ 1 ];
+            }
+            return combineNumericSqlTypes( inferredTypes );
+        }
+
+        if ( isStruct( value ) ) {
+            if ( structKeyExists( value, "cfsqltype" ) ) {
+                return normalizeSqlType( value.cfsqltype );
+            }
+
+            if ( structKeyExists( value, "sqltype" ) ) {
+                return normalizeSqlType( value.sqltype );
+            }
+
+            return structKeyExists( value, "value" ) ? inferSqlType( value.value, grammar ) : "VARCHAR";
+        }
+
+        var resolvedValueType = isNull( arguments.valueType )
+         ? listLast( toString( getMetadata( arguments.value ) ), ". " )
+         : arguments.valueType;
+        if ( isSimpleValue( arguments.value ) && variables.numericValueTypes.keyExists( resolvedValueType ) ) {
+            return deriveNumericSqlType( value );
+        }
+
+        if ( variables.booleanValueTypes.keyExists( resolvedValueType ) ) {
+            return arguments.grammar.getBooleanSqlType();
+        }
+
+        var dateValueType = resolvedValueType;
+        if ( isPureBoxLang() && isDate( arguments.value ) ) {
+            dateValueType = listLast( arguments.value.$bx.$class.getName(), "." );
+        }
+        if ( isDate( arguments.value ) && variables.dateValueTypes.keyExists( dateValueType ) ) {
+            return "TIMESTAMP";
+        }
+
+        return "VARCHAR";
+    }
+
+    public any function castAsSqlType( any value, required string sqltype ) {
+        if ( isNull( arguments.value ) ) {
+            return "NULL";
+        }
+
+        var normalizedSqlType = normalizeSqlType( arguments.sqltype );
+        if (
+            listFindNoCase( "BOOLEAN,OTHER", normalizedSqlType ) &&
+            checkIsActuallyBoolean( arguments.value )
+        ) {
+            return arguments.value ? "TRUE" : "FALSE";
+        }
+        switch ( normalizedSqlType ) {
+            case "INTEGER":
+            case "NUMERIC":
+            case "DECIMAL":
+            case "FLOAT":
+            case "SMALLINT":
+            case "REAL":
+            case "DOUBLE":
+            case "TINYINT":
+            case "MONEY":
+            case "MONEY4":
+            case "BIGINT":
+            case "BIT":
+                return ( value * 1 );
+            case "DATE":
+                return "'#dateFormat( value, "yyyy-mm-dd" )#'";
+            case "TIME":
+                return "'#timeFormat( value, "HH:mm:ss.lll" )#'";
+            case "TIMESTAMP":
+                return isBoxLang() ? "'#dateTimeFormat( value, "yyyy-MM-dd HH:mm:ss.lll" )#'" : "'#dateTimeFormat( value, "yyyy-mm-dd HH:nn:ss.lll" )#'";
+            case "NULL":
+                return "NULL";
+            case "BLOB":
+                return toBase64( value );
+            case "CLOB":
+            case "VARCHAR":
+            case "NVARCHAR":
+            case "CHAR":
+            case "NCHAR":
+            case "IDSTAMP":
+            default:
+                return "'" & replace(
+                    toString( arguments.value ),
+                    "'",
+                    "''",
+                    "all"
+                ) & "'";
+        }
+    }
+
+    private string function normalizeSqlType( required string sqltype ) {
+        var normalizedSqlType = trim( arguments.sqltype ).uCase();
+        return left( normalizedSqlType, 7 ) == "CF_SQL_"
+         ? right( normalizedSqlType, len( normalizedSqlType ) - 7 )
+         : normalizedSqlType;
+    }
+
+    /**
+     * Returns true if a value is an Expression.
+     *
+     * @value The value to check if it is an Expression.
+     *
+     * @return boolean
+     */
+    public boolean function isExpression( any value ) {
+        return !isNull( arguments.value ) &&
+        !isSimpleValue( arguments.value ) &&
+        !isArray( arguments.value ) &&
+        structKeyExists( arguments.value, "isExpression" );
+    }
+
+    /**
+     * Returns true if a value is not an Expression.
+     *
+     * @value The value to check if it is not an Expression.
+     *
+     * @return boolean
+     */
+    public boolean function isNotExpression( any value ) {
+        if ( isNull( arguments.value ) ) {
+            return true;
+        }
+        return isSimpleValue( arguments.value ) ||
+        isArray( arguments.value ) ||
+        !structKeyExists( arguments.value, "isExpression" );
+    }
+
+    /**
+     * Returns true if a value is an Expression.
+     *
+     * @value The value to check if it is an Expression.
+     *
+     * @return boolean
+     */
+    public boolean function isBuilder( any value ) {
+        if ( isNull( arguments.value ) ) {
+            return false;
+        }
+        if ( isClosure( arguments.value ) || isCustomFunction( value ) ) {
+            return false;
+        }
+        return !isSimpleValue( arguments.value ) &&
+        !isArray( arguments.value ) &&
+        isStruct( arguments.value ) &&
+        structKeyExists( arguments.value, "isBuilder" );
+    }
+
+    /**
+     * Returns true if a value is not an Expression.
+     *
+     * @value The value to check if it is not an Expression.
+     *
+     * @return boolean
+     */
+    public boolean function isNotBuilder( any value ) {
+        return !isBuilder( isNull( arguments.value ) ? javacast( "null", "" ) : arguments.value );
+    }
+
+    /**
+     * Returns true if a value is a subquery.
+     *
+     * @value The value to check if it is a subquery
+     *
+     * @return boolean
+     */
+    public boolean function isSubQuery( required any value ) {
+        // Includes quick check for a "(" to avoid the regex to look for the subquery pattern if possible
+        return isSimpleValue( arguments.value ) &&
+        arguments.value.find( "(" ) &&
+        arguments.value.reFindNoCase( "(?s)^\s*\(.+\)(?:\s+AS\s+|\s*)[^\(\s]*\s*$" );
+    }
+
+    /**
+     * Returns true if a value is not a subquery.
+     *
+     * @value The value to check if it is a subquery
+     *
+     * @return boolean
+     */
+    public boolean function isNotSubQuery( required any value ) {
+        return !isSubQuery( value );
+    }
+
+    /**
+     * Converts a query object to an array of structs.
+     *
+     * @q The query to convert.
+     *
+     * @return array
+     */
+    public array function queryToArrayOfStructs( required any q ) {
+        if ( arguments.q.recordCount == 0 ) {
+            return [];
+        }
+
+        var queryColumns = [];
+        if ( isPureBoxLang() ) {
+            queryColumns = arguments.q.getColumnNames();
+        } else {
+            for ( var item in getMetadata( arguments.q ) ) {
+                queryColumns.append( item.name );
+            }
+        }
+
+        var results = [];
+        arrayResize( results, arguments.q.recordCount );
+        for ( var row in arguments.q ) {
+            var rowData = structNew( "ordered" );
+            for ( var column in queryColumns ) {
+                rowData[ column ] = row[ column ];
+            }
+            results[ arguments.q.currentRow ] = rowData;
+        }
+        return results;
+    }
+
+    /**
+     * Converts a query object to a struct of structs keyed by the provided column.
+     *
+     * @q The query to convert.
+     * @columnKey The query column to use as the key for the returned struct.
+     *
+     * @return struct
+     */
+    public struct function queryToStructOfStructs( required any q, required string columnKey ) {
+        var results = {};
+        if ( arguments.q.recordCount == 0 ) {
+            return results;
+        }
+
+        var queryColumns = [];
+        if ( isPureBoxLang() ) {
+            queryColumns = arguments.q.getColumnNames();
+        } else {
+            for ( var item in getMetadata( arguments.q ) ) {
+                queryColumns.append( item.name );
+            }
+        }
+
+        for ( var queryRow in arguments.q ) {
+            var rowData = structNew( "ordered" );
+            for ( var column in queryColumns ) {
+                rowData[ column ] = queryRow[ column ];
+            }
+            if ( !rowData.keyExists( arguments.columnKey ) ) {
+                throw(
+                    type = "MissingColumnKey",
+                    message = "The columnKey [#arguments.columnKey#] was not found in the query results."
+                );
+            }
+
+            results[ rowData[ arguments.columnKey ] ] = rowData;
+        }
+
+        return results;
+    }
+
+    /**
+     * Remove a list of columns from a specified query.
+     *
+     * @q The query from which to remove the column.
+     * @columns A list of columns to remove from the query.
+     *
+     * @return query
+     */
+    public query function queryRemoveColumns( required query q, required string columns ) {
+        var columnsToRemove = {};
+        for ( var columnToRemove in arguments.columns.listToArray() ) {
+            columnsToRemove[ columnToRemove ] = true;
+        }
+
+        var queryColumnInfo = [];
+        if ( isPureBoxLang() ) {
+            for ( var name in arguments.q.getColumnNames() ) {
+                queryColumnInfo.append( { "name": name, "TypeName": "varchar" } );
+            }
+        } else {
+            queryColumnInfo = getMetadata( arguments.q );
+        }
+
+        var newColumns = [];
+        var newColumnTypes = [];
+        for ( var column in queryColumnInfo ) {
+            if ( columnsToRemove.keyExists( column.name ) ) {
+                continue;
+            }
+            newColumns.append( column.name );
+            var foundType = lCase( column.TypeName );
+            switch ( foundType ) {
+                case "number":
+                    newColumnTypes.append( "double" );
+                    break;
+                case "varchar2":
+                case "char":
+                case "clob":
+                    newColumnTypes.append( "varchar" );
+                    break;
+                default:
+                    newColumnTypes.append( foundType );
+            }
+        }
+
+        var queryRows = [];
+        if ( arguments.q.recordCount > 0 ) {
+            arrayResize( queryRows, arguments.q.recordCount );
+        }
+        for ( var queryRow in arguments.q ) {
+            var rowData = structNew( "ordered" );
+            for ( var retainedColumn in newColumns ) {
+                rowData[ retainedColumn ] = queryRow[ retainedColumn ];
+            }
+            queryRows[ arguments.q.currentRow ] = rowData;
+        }
+
+        return queryNew( newColumns.toList(), newColumnTypes.toList(), queryRows );
+    }
+
+    /**
+     * Normalizes sql values in to a list.
+     *
+     * @value The value to normalize to a list.
+     *
+     * @return any
+     */
+    private any function normalizeSqlValue( required any value ) {
+        if ( isArray( arguments.value ) ) {
+            return arrayToList( arguments.value );
+        }
+
+        return arguments.value;
+    }
+
+    /**
+     * Detects if a value is backed by a numeric type instead of a numeric string.
+     *
+     * @value The value to inspect.
+     *
+     * @return True when the value is backed by a numeric type.
+     */
+    public boolean function isActuallyNumeric( any value ) {
+        return checkIsActuallyNumeric( arguments.value );
+    }
+
+    /**
+     * Detects if value is numeric based on className
+     *
+     * @value The value
+     *
+     * @return boolean
+     */
+    private boolean function checkIsActuallyNumeric( any value ) {
+        if ( isNull( arguments.value ) ) {
+            variables.log.debug( "checkIsActuallyNumeric: value is null" );
+            return false;
+        }
+        var type = listLast( toString( getMetadata( arguments.value ) ), ". " );
+        variables.log.debug( "checkIsActuallyNumeric: #arguments.value# is #type#" );
+        return isSimpleValue( arguments.value ) && variables.numericValueTypes.keyExists( type );
+    }
+
+    /**
+     * Combine declared numeric ranges, rather than narrowing them to the current values.
+     * Exact decimals and approximate types have no portable, lossless common type.
+     */
+    private string function combineNumericSqlTypes( required struct types ) {
+        var integerTypes = "BIT,TINYINT,SMALLINT,INTEGER,BIGINT";
+        var numericTypes = integerTypes & ",MONEY4,MONEY,DECIMAL,NUMERIC,REAL,FLOAT,DOUBLE";
+        var integerRank = 0;
+        for ( var sqlType in arguments.types ) {
+            if ( !listFindNoCase( numericTypes, sqlType ) ) {
+                return "VARCHAR";
+            }
+            integerRank = max( integerRank, listFindNoCase( integerTypes, sqlType ) );
+        }
+
+        var hasDecimal = arguments.types.keyExists( "DECIMAL" ) || arguments.types.keyExists( "NUMERIC" );
+        var hasMoney = arguments.types.keyExists( "MONEY" ) || arguments.types.keyExists( "MONEY4" );
+        var hasApproximate = arguments.types.keyExists( "REAL" ) || arguments.types.keyExists( "FLOAT" ) || arguments.types.keyExists( "DOUBLE" );
+        if ( hasApproximate ) {
+            if ( hasDecimal || hasMoney || integerRank == 5 ) {
+                if ( variables.throwOnUnsafeNumericInference ) {
+                    throw(
+                        type = "QBUnsafeNumericInference",
+                        message = "Cannot infer a common numeric SQL type without potential precision loss.",
+                        detail = "Numeric types: [#arguments.types
+                            .keyArray()
+                            .sort( "textnocase" )
+                            .toList( ", " )#]. Specify a SQL type on the outer binding, or disable throwOnUnsafeNumericInference to fall back to VARCHAR."
+                    );
+                }
+                return "VARCHAR";
+            }
+            if ( arguments.types.keyExists( "DOUBLE" ) ) {
+                return "DOUBLE";
+            }
+            if ( arguments.types.keyExists( "FLOAT" ) ) {
+                return "FLOAT";
+            }
+            // REAL has 24 significant binary digits; use DOUBLE for the full INTEGER range.
+            return integerRank == 4 ? "DOUBLE" : "REAL";
+        }
+
+        if ( hasDecimal ) {
+            return arguments.types.keyExists( "DECIMAL" ) ? "DECIMAL" : "NUMERIC";
+        }
+        if ( hasMoney ) {
+            if ( integerRank == 5 ) {
+                return "DECIMAL";
+            }
+            return arguments.types.keyExists( "MONEY" ) || integerRank == 4 ? "MONEY" : "MONEY4";
+        }
+        return listGetAt( integerTypes, integerRank );
+    }
+
+    private string function deriveNumericSqlType( required numeric value ) {
+        var isInteger = reFind( "^-?\d+$", arguments.value ) > 0;
+        if ( !isInteger ) {
+            return normalizeSqlType( variables.decimalSqlType );
+        }
+
+        var isBigInteger = arguments.value < -2147483648 || arguments.value > 2147483647;
+        return normalizeSqlType( isBigInteger ? variables.bigIntegerSqlType : variables.integerSqlType );
+    }
+
+    /**
+     * Detects if value is a Date based on Isdate and/or className
+     *
+     * @value The value
+     *
+     * @return boolean
+     */
+    private boolean function checkIsActuallyDate( any value ) {
+        if ( isNull( arguments.value ) ) {
+            return false;
+        }
+
+        var className = "";
+        if ( isPureBoxLang() ) {
+            className = listLast( arguments.value.$bx.$class.getName(), "." );
+        } else {
+            className = listLast( toString( getMetadata( arguments.value ) ), "." )
+        }
+
+        return isDate( arguments.value ) && variables.dateValueTypes.keyExists( className );
+    }
+
+    /**
+     * Detects if value is a Boolean based on className
+     *
+     * @value The value
+     *
+     * @return boolean
+     */
+    private boolean function checkIsActuallyBoolean( any value ) {
+        if ( isNull( arguments.value ) ) {
+            return false;
+        }
+
+        return variables.booleanValueTypes.keyExists( listLast( toString( getMetadata( arguments.value ) ), "." ) );
+    }
+
+
+    /** Utility functions to assist with preventing duplicate joins. Adapted from cflib.org **/
+    /**
+     *
+     * @param LeftStruct      The first struct. (Required)
+     * @param RightStruct      The second structure. (Required)
+     * @return Returns a boolean.
+     * @author Ja Carter (ja@nuorbit.com).  Fix by Jose Alfonso and tweaks by Samuel Knowlton (sam@inleague.io) for scoping, formatting, and null checks
+     * @version 2, October 14, 2005 (updated 11 Feb 2020)
+     */
+
+    public boolean function structCompare( LeftStruct, RightStruct ) {
+        var result = true;
+        var LeftStructKeys = "";
+        var RightStructKeys = "";
+        var key = "";
+
+        // Make sure both params are structures
+        if ( !( isStruct( arguments.LeftStruct ) AND isStruct( arguments.RightStruct ) ) ) return false;
+
+        // Make sure both structures have the same keys
+        local.LeftStructKeys = listSort( structKeyList( LeftStruct ), "TextNoCase", "ASC" );
+        local.RightStructKeys = listSort( structKeyList( RightStruct ), "TextNoCase", "ASC" );
+        if ( LeftStructKeys neq RightStructKeys ) return false;
+
+        // Loop through the keys and compare them one at a time
+        for ( var key in arguments.LeftStruct ) {
+            var leftIsNull = isNull( arguments.leftStruct[ key ] );
+            var rightIsNull = isNull( arguments.rightStruct[ key ] );
+            if ( leftIsNull || rightIsNull ) {
+                if ( leftIsNull != rightIsNull ) {
+                    return false;
+                }
+                continue;
+            }
+            if ( !compareValues( arguments.LeftStruct[ key ], arguments.RightStruct[ key ] ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     *
+     * @param LeftArray      The first array. (Required)
+     * @param RightArray      The second array. (Required)
+     * @return Returns a boolean.
+     * @author Ja Carter (ja@nuorbit.com) with tweaks by Samuel Knowlton (sam@inleague.io) for scoping and formatting
+     * @version 1, September 23, 2004 (updated 11 Feb 2020)
+     */
+    public boolean function arrayCompare( LeftArray, RightArray ) {
+        var result = true;
+        var i = "";
+
+        // Make sure both params are arrays
+        if ( !( isArray( arguments.LeftArray ) AND isArray( arguments.RightArray ) ) ) {
+            return false;
+        }
+        // Make sure both arrays have the same length
+        if ( arrayLen( arguments.LeftArray ) != arrayLen( arguments.RightArray ) ) {
+            return false;
+        }
+
+        // If both arrays are empty, don't bother
+        if ( arguments.leftArray.isEmpty() && arguments.rightArray.isEmpty() ) return true;
+
+        // Loop through the elements and compare them one at a time
+        for ( var i = 1; local.i lte arrayLen( LeftArray ); local.i = local.i + 1 ) {
+            var leftIsNull = !arrayIsDefined( arguments.LeftArray, i );
+            var rightIsNull = !arrayIsDefined( arguments.RightArray, i );
+            if ( !leftIsNull ) {
+                leftIsNull = isNull( arguments.LeftArray[ i ] );
+            }
+            if ( !rightIsNull ) {
+                rightIsNull = isNull( arguments.RightArray[ i ] );
+            }
+            if ( leftIsNull || rightIsNull ) {
+                if ( leftIsNull != rightIsNull ) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ( !compareValues( arguments.LeftArray[ i ], arguments.RightArray[ i ] ) ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean function compareValues( required any left, required any right ) {
+        if ( isExpression( arguments.left ) || isExpression( arguments.right ) ) {
+            if ( !isExpression( arguments.left ) || !isExpression( arguments.right ) ) {
+                return false;
+            }
+            return arguments.left.getSQL() == arguments.right.getSQL() &&
+            arrayCompare( arguments.left.getBindings(), arguments.right.getBindings() );
+        }
+
+        if ( isStruct( arguments.left ) || isStruct( arguments.right ) ) {
+            return isStruct( arguments.left ) && isStruct( arguments.right ) &&
+            structCompare( arguments.left, arguments.right );
+        }
+
+        if ( isArray( arguments.left ) || isArray( arguments.right ) ) {
+            return isArray( arguments.left ) && isArray( arguments.right ) &&
+            arrayCompare( arguments.left, arguments.right );
+        }
+
+        return arguments.left == arguments.right;
+    }
+
+    public string function serializeBindings( required array bindings, required any grammar ) {
+        var serializedBindings = [];
+        for ( var binding in arguments.bindings ) {
+            var newBinding = extractBinding( binding, arguments.grammar );
+            if ( isBinary( newBinding.value ) ) {
+                newBinding.value = toBase64( newBinding.value );
+            }
+            serializedBindings.append( newBinding );
+        }
+        return serializeJSON( serializedBindings );
+    }
+
+    private boolean function isFloatingPoint( required struct binding ) {
+        if ( isNull( arguments.binding.value ) || arguments.binding.null ) {
+            return false;
+        }
+
+        var sqlType = uCase( arguments.binding.cfsqltype );
+        if ( left( sqlType, 7 ) == "CF_SQL_" ) {
+            sqlType = right( sqlType, len( sqlType ) - 7 );
+        }
+
+        switch ( sqlType ) {
+            case "DECIMAL":
+            case "DOUBLE":
+            case "FLOAT":
+            case "MONEY":
+            case "MONEY4":
+                return true;
+            case "NUMERIC":
+                return arguments.binding.value.toString().find( "." ) > 0;
+            default:
+                return false;
+        }
+    }
+
+    private numeric function calculateNumberOfDecimalDigits( required struct binding ) {
+        if ( isNull( arguments.binding.value ) || arguments.binding.null ) {
+            return 0;
+        }
+
+        if ( isArray( arguments.binding.value ) ) {
+            var scale = 0;
+            for ( var valueIndex = 1; valueIndex <= arguments.binding.value.len(); valueIndex++ ) {
+                if (
+                    !arrayIsDefined( arguments.binding.value, valueIndex ) || isNull(
+                        arguments.binding.value[ valueIndex ]
+                    )
+                ) {
+                    continue;
+                }
+                var item = arguments.binding.value[ valueIndex ];
+                var itemBinding = isStruct( item ) ? {
+                    value: isNull( item.value ) ? javacast( "null", "" ) : item.value,
+                    null: structKeyExists( item, "null" ) && item.null
+                } : { value: item, null: false };
+                if ( isStruct( item ) && structKeyExists( item, "scale" ) && !itemBinding.null ) {
+                    scale = max( scale, item.scale );
+                } else {
+                    scale = max( scale, calculateNumberOfDecimalDigits( itemBinding ) );
+                }
+            }
+            return scale;
+        }
+
+        if ( isInstanceOf( arguments.binding.value, "java.math.BigDecimal" ) ) {
+            return max( 0, arguments.binding.value.scale() );
+        }
+
+        var numString = arguments.binding.value.toString();
+        var exponentPosition = findNoCase( "E", numString );
+        var exponent = exponentPosition > 0
+         ? val( mid( numString, exponentPosition + 1, len( numString ) - exponentPosition ) )
+         : 0;
+        var mantissa = exponentPosition > 0 ? left( numString, exponentPosition - 1 ) : numString;
+        var decimalPosition = find( ".", mantissa );
+        var decimalDigits = decimalPosition > 0 ? len( mantissa ) - decimalPosition : 0;
+        return max( 0, decimalDigits - exponent );
+    }
+
+    private boolean function isPureBoxLang() {
+        if ( !server.keyExists( "boxlang" ) ) {
+            return false;
+        }
+        for ( var moduleName in server.boxlang.modules ) {
+            if ( findNoCase( "compat-cfml", moduleName ) > 0 ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean function isValidQueryParamStruct( required any param ) {
+        if ( !isStruct( arguments.param ) || isObject( arguments.param ) ) {
+            return false;
+        }
+
+        for ( var key in param.keyArray() ) {
+            if ( !variables.validQueryParamKeys.keyExists( key ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean function isBoxLang() {
+        return server.keyExists( "boxlang" );
+    }
+
+}

@@ -1,0 +1,10 @@
+<bx:output>
+<h1>#encodeForHTML( prc.title )#</h1>
+<table>
+	<tr><th>SKU</th><th>Name</th><th style="text-align:right">Price</th><th>Stock</th></tr>
+	<bx:loop query="prc.products">
+		<tr><td>#prc.products.sku#</td><td>#encodeForHTML( prc.products.name )#</td><td style="text-align:right">#money( prc.products.price )#</td>
+			<td><span class="pill #prc.products.stock == 0 ? 'err' : ( prc.products.stock <= 5 ? 'slow' : 'ok' )#">#prc.products.stock#</span></td></tr>
+	</bx:loop>
+</table>
+</bx:output>

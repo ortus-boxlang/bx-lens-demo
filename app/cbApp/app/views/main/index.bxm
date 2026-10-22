@@ -1,0 +1,24 @@
+<bx:output>
+<h1>BxLens ColdBox demo</h1>
+<p>A ColdBox application, built from the BoxLang template, with handlers, views, layouts, interceptors, WireBox models, custom modules and
+schedulers. Every link below produces one kind of data for the debugger. Open a page, then open the BxLens bar at the bottom of it, or the
+<a href="/~bxlens/index.bxm">console</a>.</p>
+<p>
+	<span class="pill">#prc.counts.customers# customers</span> <span class="pill">#prc.counts.products# products</span>
+	<span class="pill">#prc.counts.orders# orders</span> <span class="pill">#prc.counts.order_lines# order lines</span>
+	<a class="btn reset" href="#event.buildLink( 'main.reset' )#">Reset the data</a>
+</p>
+<bx:loop array="#prc.groups#" item="g">
+	<h2>#encodeForHTML( g.title )#</h2>
+	<p><small>#encodeForHTML( g.intro )#</small></p>
+	<table>
+		<bx:loop array="#g.items#" item="i">
+			<tr>
+				<td style="width:28%"><a href="#i.url#">#encodeForHTML( i.title )#</a>
+					<bx:if i.expect != 200><span class="pill #i.expect >= 500 ? 'err' : 'slow'#">#i.expect#</span></bx:if></td>
+				<td>#encodeForHTML( i.what )#<br><small>Look at: #encodeForHTML( i.look )#</small></td>
+			</tr>
+		</bx:loop>
+	</table>
+</bx:loop>
+</bx:output>

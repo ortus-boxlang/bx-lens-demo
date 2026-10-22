@@ -1,0 +1,68 @@
+/**
+ * The four custom modules: they load, their handlers answer, and the fault injector does what it says and can be reset.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Custom modules", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			afterEach( ( currentSpec ) => {
+				getInstance( "FaultState@faults" ).reset();
+			} );
+
+			it( "registers every module", () => {
+				var ms = getController().getModuleService();
+				for ( var m in [ "reports", "inventory", "audit", "faults" ] ) {
+					expect( ms.isModuleRegistered( m ) ).toBeTrue( "#m# is not registered" );
+				}
+			} );
+
+			it( "does not load cbdebugger, which is installed but excluded", () => {
+				expect( getController().getModuleService().isModuleRegistered( "cbdebugger" ) ).toBeFalse();
+			} );
+
+			it( "renders the reports dashboard", () => {
+				var event = this.get( "reports:main.index" );
+				expect( event.getPrivateValue( "summary" ).orders ).toBeGT( 0 );
+			} );
+
+			it( "rejects a reservation larger than the stock with InsufficientStock", () => {
+				var stock = getInstance( "StockService@inventory" );
+				expect( () => stock.reserve( 1, 999999 ) ).toThrow( type = "InsufficientStock" );
+			} );
+
+			it( "answers 409 from the reserve endpoint", () => {
+				var event = this.get( "inventory:stock.reserve", { productId : 1, qty : 999999 } );
+				expect( event.getStatusCode() ).toBe( 409 );
+			} );
+
+			it( "records requests in the audit log", () => {
+				this.get( "orders.index" );
+				expect( getInstance( "AuditLog@audit" ).list( 5 ).len() ).toBeGT( 0 );
+			} );
+
+			it( "injects an error for every request in errors mode", () => {
+				getInstance( "FaultState@faults" ).set( mode = "errors", rate = 100, minutes = 1 );
+				expect( () => this.get( "orders.index" ) ).toThrow( type = "InjectedFault" );
+			} );
+
+			it( "leaves the faults panel and the health check alone while faults are on", () => {
+				getInstance( "FaultState@faults" ).set( mode = "errors", rate = 100, minutes = 1 );
+				expect( this.get( "faults:panel.index" ).getPrivateValue( "active" ) ).toBeTrue();
+				expect( this.get( "main.health" ).getHandlerResults().status ).toBe( "ok" );
+			} );
+
+			it( "serves requests normally after a reset", () => {
+				getInstance( "FaultState@faults" ).set( mode = "errors", rate = 100, minutes = 1 );
+				getInstance( "FaultState@faults" ).reset();
+				expect( this.get( "orders.index" ).getCurrentView() ).toBe( "orders/index" );
+			} );
+
+		} );
+	}
+
+}

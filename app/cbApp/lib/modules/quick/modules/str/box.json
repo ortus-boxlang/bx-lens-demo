@@ -1,0 +1,46 @@
+{
+    "name":"str",
+    "version":"4.0.2",
+    "author":"Eric Peterson",
+    "location":"forgeboxStorage",
+    "homepage":"https://github.com/elpete/str",
+    "documentation":"https://github.com/elpete/str",
+    "repository":{
+        "type":"git",
+        "URL":"https://github.com/elpete/str"
+    },
+    "license":[
+        {
+            "type":"MIT",
+            "URL":"https://github.com/elpete/str/LICENSE"
+        }
+    ],
+    "bugs":"https://github.com/elpete/str/issues",
+    "slug":"str",
+    "shortDescription":"A collection of string helper functions",
+    "description":"A collection of string helper functions",
+    "type":"modules",
+    "dependencies":{
+        "cbjavaloader":"^2"
+    },
+    "devDependencies":{
+        "testbox":"^5.1.0+2"
+    },
+    "installPaths":{
+        "testbox":"testbox/",
+        "cbjavaloader":"modules/cbjavaloader/"
+    },
+    "scripts":{
+        "format":"cfformat run models/**/*.cfc,tests/specs/**/*.cfc --overwrite",
+        "format:check":"cfformat check models/**/*.cfc,tests/specs/**/*.cfc"
+    },
+    "ignore":[
+        "**/.*",
+        "test",
+        "tests",
+        "str.sublime-project"
+    ],
+    "testbox":{
+        "runner":"http://127.0.0.1:56271/tests/runner.cfm"
+    }
+}

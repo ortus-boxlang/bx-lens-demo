@@ -1,0 +1,10 @@
+<bx:output>
+<h1>#encodeForHTML( prc.customer.name )#</h1>
+<p>#encodeForHTML( prc.customer.email )#, #prc.customer.country#, customer since #prc.customer.created#</p>
+<table>
+	<tr><th>Order</th><th>Status</th><th>Created</th><th style="text-align:right">Total</th></tr>
+	<bx:loop query="prc.orders">
+		<tr><td><a href="#event.buildLink( linkTo = 'orders.show', queryString = 'id=' & prc.orders.id )#">#prc.orders.id#</a></td><td>#prc.orders.status#</td><td>#prc.orders.created#</td><td style="text-align:right">#money( prc.orders.total )#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>

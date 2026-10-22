@@ -1,0 +1,16 @@
+<bx:output>
+<h1>Error catalog</h1>
+<p>Each link throws an uncaught error: ColdBox answers with a 500 (or the status shown) through <code>main.onException</code>.
+Add <code>?caught=1</code> to catch it in the handler instead and get a normal page.</p>
+<table>
+	<tr><th>Kind</th><th>What it does</th><th>Uncaught</th><th>Caught</th></tr>
+	<bx:loop array="#prc.kinds#" item="k">
+		<tr>
+			<td><code>#k.action#</code></td><td>#encodeForHTML( k.what )#</td>
+			<td><a href="#event.buildLink( 'errors.' & k.action )#">run</a></td>
+			<td><a href="#event.buildLink( linkTo = 'errors.' & k.action, queryString = 'caught=1' )#">run</a></td>
+		</tr>
+	</bx:loop>
+</table>
+<p><a href="/cbApp/public/index.bxm/nosuchhandler/index">A URL that matches no handler</a> goes to <code>main.notFound</code> (404).</p>
+</bx:output>

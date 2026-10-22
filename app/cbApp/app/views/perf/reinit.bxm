@@ -1,0 +1,5 @@
+<bx:output>
+<h1>#encodeForHTML( prc.title )#</h1>
+<p>#encodeForHTML( prc.text )#</p>
+<p><a class="btn reset" href="#event.buildLink( linkTo = 'main.index', queryString = 'fwreinit=1' )#">Reinit ColdBox</a></p>
+</bx:output>

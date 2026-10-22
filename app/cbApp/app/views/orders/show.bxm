@@ -1,0 +1,11 @@
+<bx:output>
+<h1>Order #prc.order.id#</h1>
+<p>#encodeForHTML( prc.order.customer )# (#encodeForHTML( prc.order.email )#), <span class="pill">#prc.order.status#</span>, #prc.order.created#</p>
+<table>
+	<tr><th>SKU</th><th>Product</th><th>Qty</th><th style="text-align:right">Price</th></tr>
+	<bx:loop query="prc.lines">
+		<tr><td>#prc.lines.sku#</td><td>#encodeForHTML( prc.lines.name )#</td><td>#prc.lines.qty#</td><td style="text-align:right">#money( prc.lines.price )#</td></tr>
+	</bx:loop>
+</table>
+<p><strong>Total #money( prc.order.total )#</strong></p>
+</bx:output>

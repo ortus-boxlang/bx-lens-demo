@@ -1,0 +1,159 @@
+/**
+ * Every way a ColdBox request can fail. Most of them are uncaught on purpose: ColdBox sends them to main.onException, which sets a 500,
+ * logs the error and tells BxLens about it. Add ?caught=1 to catch the error here instead and see a normal page with the error recorded.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="orderService" inject="OrderService";
+	property name="wirebox"      inject="wirebox";
+
+	function index( event, rc, prc ) {
+		prc.kinds = [
+			{ action : "handlerFails", what : "An exception thrown in the handler action" },
+			{ action : "viewFails", what : "An exception thrown while a view renders" },
+			{ action : "layoutFails", what : "An exception thrown while a layout renders" },
+			{ action : "modelFails", what : "An exception from a model: a service rejects an unknown product" },
+			{ action : "helperFails", what : "An error inside the application helper function money()" },
+			{ action : "sqlFails", what : "A bad SQL statement" },
+			{ action : "validation", what : "A cbvalidation failure with a 422 view. Add ?qty=-1&email=bad to fail it" },
+			{ action : "wireboxFails", what : "WireBox cannot find a dependency a model asks for" },
+			{ action : "circularFails", what : "A circular constructor dependency between two models" },
+			{ action : "brokenInitFails", what : "A model whose init() throws" },
+			{ action : "nestedFailure", what : "A failure three runEvent calls deep" },
+			{ action : "listenerFails", what : "A listener of the custom onOrderCreated event throws" },
+			{ action : "cacheFails", what : "Asks CacheBox for a cache that does not exist" },
+			{ action : "missingView", what : "Sets a view that does not exist" },
+			{ action : "missingLayout", what : "Sets a layout that does not exist" },
+			{ action : "noSuchAction", what : "An action that is not on the handler: onMissingAction answers 404" },
+			{ action : "api500", what : "A JSON error response from an API handler" }
+		];
+		prc.lookAt = [
+			"Console > Errors: each kind is its own group with counts, the stack, and the request context.",
+			"Bar > Exceptions on a caught run (?caught=1): the exception with ColdBox and BoxLang frames.",
+			"Console > Requests: the 500 requests with the failing event.",
+			"Console > Reports: the 5xx rate moves."
+		];
+		event.setView( "errors/index" );
+	}
+
+	function handlerFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => throw( type = "DemoHandlerError", message = "A handler action threw on purpose", detail = "errors.handlerFails" ) );
+	}
+
+	function viewFails( event, rc, prc ) {
+		event.setView( "errors/viewBoom" );
+	}
+
+	function layoutFails( event, rc, prc ) {
+		event.setLayout( "Boom" );
+		event.setView( "errors/note" );
+	}
+
+	function modelFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => variables.orderService.create( 1, [ { productId : 99999, qty : 1 } ] ) );
+	}
+
+	function helperFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => money( "not a number" ) );
+	}
+
+	function sqlFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => queryExecute( "SELECT nope FROM orders WHERE id = :id", { id : 1 } ) );
+	}
+
+	/** cbvalidation: ?qty=-1&email=bad fails, no parameters passes. */
+	function validation( event, rc, prc ) {
+		var result = validate(
+			target      = rc,
+			constraints = {
+				qty   : { required : true, type : "numeric", min : 1, max : 9 },
+				email : { required : true, type : "email" }
+			}
+		);
+		prc.validation = result;
+		prc.lookAt     = [ "Console > Errors: the 422 is not an exception, so look in Requests for the status.", "Bar > Timeline: the validation manager span." ];
+		if ( result.hasErrors() ) {
+			event.setHTTPHeader( statusCode = 422 );
+		}
+		event.setView( "errors/validation" );
+	}
+
+	function wireboxFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => getInstance( "faulty.MissingDependency" ) );
+	}
+
+	function circularFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => getInstance( "faulty.CircularA" ) );
+	}
+
+	function brokenInitFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => getInstance( "faulty.BrokenInit" ) );
+	}
+
+	function nestedFailure( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => runEvent( event = "errors.deepFail", eventArguments = { depth : 1 }, private = true ) );
+	}
+
+	private function deepFail( event, rc, prc, numeric depth = 1 ) {
+		if ( arguments.depth >= 3 ) {
+			throw( type = "DemoNestedError", message = "A failure #arguments.depth# runEvent calls deep" );
+		}
+		return runEvent( event = "errors.deepFail", eventArguments = { depth : arguments.depth + 1 }, private = true );
+	}
+
+	/** Announces onOrderCreated with ?failListener=1 so the FailingListener throws. */
+	function listenerFails( event, rc, prc ) {
+		rc.failListener = 1;
+		tryOrCatch( event, rc, prc, () => announce( "onOrderCreated", { orderId : 1, customerId : 1, total : 0 } ) );
+	}
+
+	function cacheFails( event, rc, prc ) {
+		tryOrCatch( event, rc, prc, () => getInstance( "cachebox:noSuchCache" ).get( "x" ) );
+	}
+
+	function missingView( event, rc, prc ) {
+		event.setView( "errors/thisViewDoesNotExist" );
+	}
+
+	function missingLayout( event, rc, prc ) {
+		event.setLayout( "ThisLayoutDoesNotExist" );
+		event.setView( "errors/note" );
+	}
+
+	/** An API style failure: a 500 with a JSON body, no view. */
+	function api500( event, rc, prc ) {
+		try {
+			queryExecute( "SELECT * FROM table_that_does_not_exist" );
+		} catch ( any e ) {
+			reportToLens( e );
+			return event.renderData( type = "json", statusCode = 500, data = { error : true, type : e.type, message : e.message } );
+		}
+	}
+
+	/** Called by ColdBox when the action in the URL is not defined on this handler. */
+	function onMissingAction( event, rc, prc, missingAction, eventArguments ) {
+		event.setHTTPHeader( statusCode = 404 );
+		prc.missingEvent = "errors." & arguments.missingAction;
+		event.setView( view = "main/notFound", layout = "Main" );
+	}
+
+	/**
+	 * Runs the work. Without ?caught=1 the error goes up to main.onException. With it, the error is caught here, sent to BxLens, and the page
+	 * renders normally.
+	 */
+	private function tryOrCatch( event, rc, prc, required function work ) {
+		if ( structKeyExists( rc, "caught" ) ) {
+			try {
+				arguments.work();
+			} catch ( any e ) {
+				reportToLens( e );
+				prc.caught = e.message;
+			}
+			prc.lookAt = [ "Bar > Exceptions: the exception, caught and sent with lensException()." ];
+			return event.setView( "errors/caught" );
+		}
+		arguments.work();
+		event.setView( "errors/note" );
+	}
+
+}

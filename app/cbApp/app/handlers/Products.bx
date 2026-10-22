@@ -1,0 +1,17 @@
+class extends="coldbox.system.EventHandler" {
+
+	property name="productService" inject="ProductService";
+
+	function index( event, rc, prc ) {
+		prc.products = variables.productService.list();
+		prc.title    = "Products";
+		event.setView( "products/index" );
+	}
+
+	function lowStock( event, rc, prc ) {
+		prc.products = variables.productService.lowStock( val( rc.threshold ?: 5 ) );
+		prc.title    = "Low stock";
+		event.setView( "products/index" );
+	}
+
+}

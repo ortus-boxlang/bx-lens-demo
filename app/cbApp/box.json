@@ -1,0 +1,36 @@
+{
+    "name": "cbApp",
+    "version": "1.0.0",
+    "slug": "cbapp",
+    "private": true,
+    "type": "mvc",
+    "language": "boxlang",
+    "shortDescription": "A ColdBox application for the BxLens demo: errors, slow rendering, N+1 queries, modules and schedulers",
+    "dependencies": {
+        "coldbox": "^8.2.0",
+        "cbvalidation": "*",
+        "cbmessagebox": "*",
+        "cbdebugger": "*",
+        "route-visualizer": "*",
+        "qb": "*",
+        "quick": "*",
+        "cbmockdata": "*"
+    },
+    "devDependencies": {
+        "testbox": "*"
+    },
+    "installPaths": {
+        "coldbox": "lib/coldbox/",
+        "testbox": "lib/testbox/",
+        "route-visualizer": "lib/modules/route-visualizer/",
+        "cbvalidation": "lib/modules/cbvalidation/",
+        "cbmessagebox": "lib/modules/cbmessagebox/",
+        "cbdebugger": "lib/modules/cbdebugger/",
+        "qb": "lib/modules/qb/",
+        "quick": "lib/modules/quick/",
+        "cbmockdata": "lib/modules/cbmockdata/"
+    },
+    "testbox": {
+        "runner": "/tests/runner.bxm"
+    }
+}

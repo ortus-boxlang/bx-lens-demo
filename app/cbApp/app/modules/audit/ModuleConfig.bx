@@ -1,0 +1,25 @@
+/**
+ * Audit: an interceptor that records every request and every created order, and a page that lists them. Entry point /audit.
+ */
+class {
+
+	this.title              = "audit";
+	this.author             = "BxLens demo";
+	this.description        = "Audit trail through interceptors";
+	this.version            = "1.0.0";
+	this.viewParentLookup   = true;
+	this.layoutParentLookup = true;
+	this.entryPoint         = "audit";
+	this.modelNamespace     = "audit";
+	this.cfmapping          = "audit";
+	this.autoMapModels      = true;
+	this.dependencies       = [];
+
+	function configure() {
+		variables.settings = { maxEntries : 500 };
+		variables.interceptors = [
+			{ class : "#moduleMapping#.interceptors.AuditTrail", name : "AuditTrail@audit" }
+		];
+	}
+
+}

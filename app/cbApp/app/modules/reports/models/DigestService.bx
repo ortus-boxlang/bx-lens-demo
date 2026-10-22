@@ -1,0 +1,20 @@
+/**
+ * The work the reports scheduler does.
+ */
+class singleton {
+
+	property name="reportService" inject="ReportService";
+	property name="orderService"  inject="OrderService";
+	property name="log"           inject="logbox:logger:{this}";
+
+	struct function send() {
+		var s = variables.reportService.summary();
+		variables.log.info( "Digest: #s.orders# orders, revenue #s.revenue#" );
+		return s;
+	}
+
+	numeric function cleanup() {
+		return variables.orderService.expireStale();
+	}
+
+}

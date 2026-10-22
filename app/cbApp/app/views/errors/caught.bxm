@@ -1,0 +1,5 @@
+<bx:output>
+<h1>Caught in the handler</h1>
+<div class="err-box"><p>#encodeForHTML( prc.caught )#</p></div>
+<p><small>The page rendered normally (200). The error went to BxLens with <code>lensException()</code>.</small></p>
+</bx:output>

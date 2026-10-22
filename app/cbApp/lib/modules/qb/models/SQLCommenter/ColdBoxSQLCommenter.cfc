@@ -1,0 +1,66 @@
+component extends="SQLCommenter" singleton accessors="true" {
+
+    /**
+     * All the qb module settings so we can inspect the sqlCommenter settings.
+     */
+    property name="settings" inject="box:moduleSettings:qb";
+
+    /**
+     * WireBox Injector
+     */
+    property name="wirebox" inject="wirebox";
+
+    /**
+     * An array of configured Commenter components.
+     * These are used to fetch the comments for each SQL query.
+     */
+    property name="commenters" type="array";
+
+    /**
+     * Set up the commenters array with configured Commenter components.
+     */
+    function onDIComplete() {
+        variables.commenters = [];
+        for ( var commenterInfo in variables.settings.sqlCommenter.commenters ) {
+            param commenterInfo.properties = {};
+            if ( !commenterInfo.keyExists( "class" ) ) {
+                throw( "A commenter must have a class pointing to a WireBox mapping" );
+            }
+
+            variables.commenters.append(
+                variables.wirebox.getInstance( commenterInfo.class ).setProperties( commenterInfo.properties )
+            );
+        }
+    }
+
+    /**
+     * Gathers comments from the configured commenters and appends it to the SQL query.
+     *
+     * @sql         The SQL string to add the comment to.
+     * @datasource  The datasource that will execute the query.
+     *              If null, the default datasource is going to be used.
+     * @bindings    An array of bindings for the query.
+     *
+     * @return      Commented SQL string
+     */
+    public string function appendSqlComments( required string sql, string datasource, array bindings = [] ) {
+        if ( !settings.sqlCommenter.enabled ) {
+            return arguments.sql;
+        }
+
+        var comments = {};
+        for ( var commenter in variables.commenters ) {
+            comments.append(
+                commenter.getComments(
+                    sql = sql,
+                    datasource = isNull( datasource ) ? javacast( "null", "" ) : datasource,
+                    bindings = bindings
+                ),
+                true
+            );
+        }
+
+        return appendCommentsToSQL( arguments.sql, comments );
+    }
+
+}

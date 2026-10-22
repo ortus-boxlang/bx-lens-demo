@@ -1,0 +1,159 @@
+/**
+ * Represents a Join clause in a sql statement
+ */
+component displayname="JoinClause" accessors="true" extends="qb.models.Query.QueryBuilder" {
+
+    /**
+     * A reference to the parent query to which this join clause belongs.
+     */
+    property name="joiningQuery" type="qb.models.Query.QueryBuilder";
+
+    /**
+     * The join type of the join clause.
+     */
+    property name="type" type="string";
+
+    /**
+     * The table to join.
+     */
+    property name="table" type="any";
+
+    /**
+     * In the {cross,outer}Apply case, the already-toSql'd string of the table expr source.
+     * e.g. will be a string like "select 1 from foo where x = ?"
+     */
+    property name="lateralRawExpression" type="string";
+
+    /**
+     * Bindings belonging to a lateral source. These participate in duplicate
+     * join comparison while the parent query owns the executable bindings.
+     */
+    property name="lateralBindings" type="array";
+
+    /**
+     * Valid join types for join clauses.
+     */
+    variables.types = [
+        "inner",
+        "full",
+        "full outer",
+        "cross",
+        "left",
+        "left outer",
+        "right",
+        "right outer",
+        "outer apply",
+        "cross apply",
+        "lateral"
+    ];
+
+    /**
+     * Creates a basic join clause.
+     *
+     * @joiningQuery A reference to the query to which this join clause belongs.
+     * @type The join type of this join clause.
+     * @table The table to join.
+     * @lateralRawExpression The already-compiled table expression for a lateral join.
+     * @lateralBindings Bindings belonging to the lateral table expression.
+     *
+     * @return qb.models.Query.JoinClause
+     */
+    public JoinClause function init(
+        required QueryBuilder joiningQuery,
+        required string type,
+        required any table,
+        string lateralRawExpression,
+        array lateralBindings = []
+    ) {
+        var typeIsValid = false;
+        for ( var validType in variables.types ) {
+            if ( validType == arguments.type ) {
+                typeIsValid = true;
+            }
+        }
+        if ( !typeIsValid ) {
+            throw( type = "InvalidSQLType", message = "[#type#] is not a valid sql join type" );
+        }
+
+        variables.joiningQuery = arguments.joiningQuery;
+        variables.type = arguments.type;
+        variables.table = arguments.table;
+        variables.lateralRawExpression = isNull( arguments.lateralRawExpression )
+         ? ""
+         : arguments.lateralRawExpression;
+        variables.lateralBindings = arguments.lateralBindings;
+
+        super.init(
+            grammar = joiningQuery.getGrammar(),
+            utils = joiningQuery.getUtils(),
+            returnFormat = joiningQuery.getReturnFormat(),
+            returnFormatterRegistry = joiningQuery.getReturnFormatterRegistry(),
+            preventDuplicateJoins = joiningQuery.getPreventDuplicateJoins(),
+            validateOperatorsAndCombinators = joiningQuery.getValidateOperatorsAndCombinators(),
+            validateQueryExecuteReturnType = joiningQuery.getValidateQueryExecuteReturnType(),
+            paginationCollector = isNull( joiningQuery.getPaginationCollector() ) ? javacast( "null", "" ) : joiningQuery.getPaginationCollector(),
+            columnFormatter = isNull( joiningQuery.getColumnFormatter() ) ? javacast( "null", "" ) : joiningQuery.getColumnFormatter(),
+            defaultOptions = joiningQuery.getDefaultOptions(),
+            sqlCommenter = joiningQuery.getSqlCommenter(),
+            shouldMaxRowsOverrideToAll = joiningQuery.getShouldMaxRowsOverrideToAll(),
+            collectQueryLog = joiningQuery.getCollectQueryLog(),
+            validateDuplicateSelectColumns = joiningQuery.getValidateDuplicateSelectColumns()
+        );
+        if ( !isNull( joiningQuery.getShouldWrapValues() ) ) {
+            if ( joiningQuery.getShouldWrapValues() ) {
+                withWrappingValues();
+            } else {
+                withoutWrappingValues();
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Add a column condition to the join statement.
+     *
+     * @first The name of the first column with which to join. A closure can be passed to create nested join statements.
+     * @operator The join operator to use.
+     * @second The name of the second column with which to join.
+     * @combinator The combinator to use between joins.
+     *
+     * @return qb.models.Query.JoinClause
+     */
+    public JoinClause function on(
+        required first,
+        operator,
+        second,
+        combinator = "and"
+    ) {
+        if ( isClosure( first ) || isCustomFunction( first ) ) {
+            return whereNested( first, combinator );
+        }
+
+        return whereColumn( argumentCollection = arguments );
+    }
+
+    /**
+     * Add an or column condition to the join statement.
+     *
+     * @first The name of the first column with which to join. A closure can be passed to create nested join statements.
+     * @operator The join operator to use.
+     * @second The name of the second column with which to join.
+     *
+     * @return qb.models.Query.JoinClause
+     */
+    public JoinClause function orOn( required first, operator, second ) {
+        arguments.combinator = "or";
+        return on( argumentCollection = arguments );
+    }
+
+    /**
+     * Returns whether the object is a JoinClause.
+     * This exists because isInstanceOf is super slow!
+     *
+     * @returns boolean
+     */
+    public boolean function isJoin() {
+        return true;
+    }
+
+}

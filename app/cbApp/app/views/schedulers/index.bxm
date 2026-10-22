@@ -1,0 +1,18 @@
+<bx:output>
+<h1>ColdBox schedulers</h1>
+<p>Registered with ColdBox's scheduler service. Each has healthy, failing, slow, overlapping, conditional or paused tasks.</p>
+<bx:loop array="#prc.schedulers#" item="s">
+	<h2>#encodeForHTML( s.name )#</h2>
+	<table>
+		<tr><th>Task</th><th>Every</th><th>State</th><th>Runs</th><th>Success</th><th>Failures</th><th>Last run</th><th></th></tr>
+		<bx:loop array="#s.tasks#" item="t">
+			<tr>
+				<td>#encodeForHTML( t.name )#</td><td>#t.period#</td>
+				<td><span class="pill #t.disabled ? '' : ( t.failures > 0 ? 'err' : 'ok' )#">#t.disabled ? 'paused' : ( t.failures > 0 ? 'failing' : 'ok' )#</span></td>
+				<td>#t.runs#</td><td>#t.success#</td><td>#t.failures#</td><td>#t.lastRun#</td>
+				<td><a class="btn" href="#event.buildLink( linkTo = 'schedulers.runNow', queryString = 'scheduler=' & urlEncodedFormat( s.name ) & '&task=' & urlEncodedFormat( t.name ) )#">Run now</a></td>
+			</tr>
+		</bx:loop>
+	</table>
+</bx:loop>
+</bx:output>

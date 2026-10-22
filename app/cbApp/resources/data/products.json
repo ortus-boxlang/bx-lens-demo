@@ -1,0 +1,212 @@
+[
+ {
+  "id": 1,
+  "sku": "SKU-1001",
+  "name": "Gadget B1",
+  "price": 129.69,
+  "stock": 0
+ },
+ {
+  "id": 2,
+  "sku": "SKU-1002",
+  "name": "Gizmo C2",
+  "price": 149.6,
+  "stock": 2
+ },
+ {
+  "id": 3,
+  "sku": "SKU-1003",
+  "name": "Doohickey D3",
+  "price": 48.53,
+  "stock": 120
+ },
+ {
+  "id": 4,
+  "sku": "SKU-1004",
+  "name": "Sprocket E4",
+  "price": 24.99,
+  "stock": 120
+ },
+ {
+  "id": 5,
+  "sku": "SKU-1005",
+  "name": "Flange F5",
+  "price": 178.98,
+  "stock": 0
+ },
+ {
+  "id": 6,
+  "sku": "SKU-1006",
+  "name": "Widget G6",
+  "price": 120.15,
+  "stock": 0
+ },
+ {
+  "id": 7,
+  "sku": "SKU-1007",
+  "name": "Gadget H7",
+  "price": 10.81,
+  "stock": 0
+ },
+ {
+  "id": 8,
+  "sku": "SKU-1008",
+  "name": "Gizmo I8",
+  "price": 47.63,
+  "stock": 40
+ },
+ {
+  "id": 9,
+  "sku": "SKU-1009",
+  "name": "Doohickey J9",
+  "price": 122.39,
+  "stock": 40
+ },
+ {
+  "id": 10,
+  "sku": "SKU-1010",
+  "name": "Sprocket K10",
+  "price": 43.77,
+  "stock": 120
+ },
+ {
+  "id": 11,
+  "sku": "SKU-1011",
+  "name": "Flange L11",
+  "price": 141.76,
+  "stock": 12
+ },
+ {
+  "id": 12,
+  "sku": "SKU-1012",
+  "name": "Widget M12",
+  "price": 47.99,
+  "stock": 40
+ },
+ {
+  "id": 13,
+  "sku": "SKU-1013",
+  "name": "Gadget N13",
+  "price": 59.25,
+  "stock": 300
+ },
+ {
+  "id": 14,
+  "sku": "SKU-1014",
+  "name": "Gizmo O14",
+  "price": 6.27,
+  "stock": 0
+ },
+ {
+  "id": 15,
+  "sku": "SKU-1015",
+  "name": "Doohickey P15",
+  "price": 162.13,
+  "stock": 120
+ },
+ {
+  "id": 16,
+  "sku": "SKU-1016",
+  "name": "Sprocket Q16",
+  "price": 87.41,
+  "stock": 5
+ },
+ {
+  "id": 17,
+  "sku": "SKU-1017",
+  "name": "Flange R17",
+  "price": 35.32,
+  "stock": 300
+ },
+ {
+  "id": 18,
+  "sku": "SKU-1018",
+  "name": "Widget S18",
+  "price": 70.64,
+  "stock": 0
+ },
+ {
+  "id": 19,
+  "sku": "SKU-1019",
+  "name": "Gadget T19",
+  "price": 79.09,
+  "stock": 5
+ },
+ {
+  "id": 20,
+  "sku": "SKU-1020",
+  "name": "Gizmo U20",
+  "price": 170.26,
+  "stock": 40
+ },
+ {
+  "id": 21,
+  "sku": "SKU-1021",
+  "name": "Doohickey V21",
+  "price": 56.58,
+  "stock": 0
+ },
+ {
+  "id": 22,
+  "sku": "SKU-1022",
+  "name": "Sprocket W22",
+  "price": 13.47,
+  "stock": 12
+ },
+ {
+  "id": 23,
+  "sku": "SKU-1023",
+  "name": "Flange X23",
+  "price": 109.56,
+  "stock": 12
+ },
+ {
+  "id": 24,
+  "sku": "SKU-1024",
+  "name": "Widget Y24",
+  "price": 20.37,
+  "stock": 5
+ },
+ {
+  "id": 25,
+  "sku": "SKU-1025",
+  "name": "Gadget Z25",
+  "price": 166.73,
+  "stock": 40
+ },
+ {
+  "id": 26,
+  "sku": "SKU-1026",
+  "name": "Gizmo A26",
+  "price": 177.66,
+  "stock": 5
+ },
+ {
+  "id": 27,
+  "sku": "SKU-1027",
+  "name": "Doohickey B27",
+  "price": 117.58,
+  "stock": 120
+ },
+ {
+  "id": 28,
+  "sku": "SKU-1028",
+  "name": "Sprocket C28",
+  "price": 18.56,
+  "stock": 0
+ },
+ {
+  "id": 29,
+  "sku": "SKU-1029",
+  "name": "Flange D29",
+  "price": 133.95,
+  "stock": 300
+ },
+ {
+  "id": 30,
+  "sku": "SKU-1030",
+  "name": "Widget E30",
+  "price": 61.43,
+  "stock": 0
+ }
+]

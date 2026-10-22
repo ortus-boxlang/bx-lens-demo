@@ -1,0 +1,27 @@
+/**
+ * The faults scheduler, registered by ColdBox as cbScheduler@faults.
+ */
+class {
+
+	function configure() {
+		setTimezone( "UTC" );
+
+		// When fault mode is on, this task throws a random exception every 20 seconds, so the scheduler shows failures too
+		task( "chaos-monkey" )
+			.call( () => {
+				var kinds = [ "TimeoutError", "ConnectionReset", "DiskFull", "RateLimited" ];
+				throw( type = kinds[ randRange( 1, kinds.len() ) ], message = "The chaos monkey struck" );
+			} )
+			.delay( 20, "seconds" )
+			.every( 20, "seconds" )
+			.when( () => getInstance( "FaultState@faults" ).isActive() )
+			.onFailure( ( task, exception ) => log.warn( "chaos-monkey: #exception.type#" ) );
+
+		// Ends fault mode when its time is up
+		task( "fault-reset" )
+			.call( () => getInstance( "FaultState@faults" ).isActive() )
+			.delay( 20, "seconds" )
+			.every( 15, "seconds" );
+	}
+
+}

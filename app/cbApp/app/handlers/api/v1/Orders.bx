@@ -1,0 +1,53 @@
+/**
+ * A RESTful orders API. JSON in and out, real status codes, no views, so BxLens records these as requests without a bar.
+ */
+class extends="coldbox.system.RestHandler" {
+
+	property name="orderService" inject="OrderService";
+
+	/** GET /api/v1/orders?page=1&status=open */
+	function index( event, rc, prc ) {
+		event.paramValue( "page", 1 ).paramValue( "status", "" );
+		var size = 20;
+		var rows = variables.orderService.list( size, ( val( rc.page ) - 1 ) * size, rc.status );
+		return {
+			page  : val( rc.page ),
+			total : variables.orderService.count( rc.status ),
+			data  : rows.reduce( ( acc, r ) => { acc.append( { id : r.id, customer : r.customer, status : r.status, total : r.total } ); return acc; }, [] )
+		};
+	}
+
+	/** GET /api/v1/orders/:id: 404 when there is no such order */
+	function show( event, rc, prc ) {
+		var o = variables.orderService.find( val( rc.id ?: 0 ) );
+		if ( !o.recordCount ) {
+			return event.renderData( type = "json", statusCode = 404, data = { error : true, message : "Order #rc.id# not found" } );
+		}
+		return { id : o.id, customer : o.customer, status : o.status, total : o.total, lines : variables.orderService.lines( o.id ).recordCount };
+	}
+
+	/** POST /api/v1/orders with customerId, productId, qty: 422 when it does not validate, 201 when it does */
+	function create( event, rc, prc ) {
+		var result = validate(
+			target      = rc,
+			constraints = { customerId : { required : true, type : "numeric" }, productId : { required : true, type : "numeric" }, qty : { required : true, type : "numeric", min : 1, max : 9 } }
+		);
+		if ( result.hasErrors() ) {
+			return event.renderData( type = "json", statusCode = 422, data = { error : true, messages : result.getAllErrors() } );
+		}
+		var id = variables.orderService.create( val( rc.customerId ), [ { productId : val( rc.productId ), qty : val( rc.qty ) } ] );
+		return event.renderData( type = "json", statusCode = 201, data = { id : id } );
+	}
+
+	/** GET /api/v1/orders/boom: an uncaught exception, answered as JSON by onError */
+	function boom( event, rc, prc ) {
+		throw( type = "DemoApiError", message = "The API handler threw on purpose" );
+	}
+
+	/** RestHandler calls this for every uncaught error in the handler: a JSON 500 and a note to BxLens. */
+	function onError( event, rc, prc, faultAction, exception, eventArguments ) {
+		reportToLens( arguments.exception );
+		return event.renderData( type = "json", statusCode = 500, data = { error : true, type : arguments.exception.type, message : arguments.exception.message } );
+	}
+
+}

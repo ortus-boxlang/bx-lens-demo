@@ -1,0 +1,12 @@
+<bx:output>
+<h1>Inventory</h1>
+<table>
+	<tr><th>SKU</th><th>Name</th><th>Stock</th></tr>
+	<bx:loop query="prc.products">
+		<tr><td>#prc.products.sku#</td><td>#encodeForHTML( prc.products.name )#</td>
+			<td><span class="pill #prc.products.stock == 0 ? 'err' : ( prc.products.stock <= 5 ? 'slow' : 'ok' )#">#prc.products.stock#</span></td></tr>
+	</bx:loop>
+</table>
+<p><a class="btn" href="/cbApp/public/index.bxm/inventory/stock/reserve?productId=1&qty=999">Reserve too many (409)</a>
+<a class="btn" href="/cbApp/public/index.bxm/inventory/stock/sync">Slow sync</a></p>
+</bx:output>

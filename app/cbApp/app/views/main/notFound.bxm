@@ -1,0 +1,5 @@
+<bx:output>
+<h1>Not found</h1>
+<p>No handler, action or record for <code>#encodeForHTML( prc.missingEvent ?: event.getCurrentEvent() )#</code>.</p>
+<p><a href="#event.buildLink( 'main.index' )#">Back to the scenarios</a></p>
+</bx:output>

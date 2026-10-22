@@ -1,0 +1,10 @@
+/**
+ * Throws while it is being built.
+ */
+class {
+
+	function init() {
+		throw( type = "BrokenInit", message = "This model cannot be created: its init throws" );
+	}
+
+}

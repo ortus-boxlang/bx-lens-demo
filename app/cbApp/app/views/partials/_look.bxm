@@ -1,0 +1,10 @@
+<bx:script>
+	// The "where to look in BxLens" box. Handlers fill prc.lookAt with a few lines.
+	if ( structKeyExists( prc, "lookAt" ) && isArray( prc.lookAt ) && prc.lookAt.len() ) {
+		writeOutput( '<div class="look"><h2>Where to look in BxLens</h2><ul>' );
+		for ( line in prc.lookAt ) {
+			writeOutput( '<li>' & encodeForHTML( line ) & '</li>' );
+		}
+		writeOutput( '</ul></div>' );
+	}
+</bx:script>

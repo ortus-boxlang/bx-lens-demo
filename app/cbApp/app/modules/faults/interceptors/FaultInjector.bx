@@ -1,0 +1,23 @@
+/**
+ * Adds latency or throws before the handler runs, when the fault state says so. The faults panel, the health check and the schedulers page
+ * are exempt so a presenter can always turn it off.
+ */
+class extends="coldbox.system.Interceptor" {
+
+	property name="faultState" inject="FaultState@faults";
+
+	function preProcess( event, interceptData, rc, prc ) {
+		var ev = event.getCurrentEvent();
+		if ( ev.findNoCase( "faults:" ) || ev == "main.health" || ev.findNoCase( "schedulers." ) ) {
+			return;
+		}
+		switch ( variables.faultState.decide() ) {
+			case "latency":
+				sleep( variables.faultState.snapshot().latencyMs );
+				break;
+			case "error":
+				throw( type = "InjectedFault", message = "The faults module injected an error into #ev#" );
+		}
+	}
+
+}

@@ -1,0 +1,46 @@
+/**
+ * Stock levels and reservations.
+ */
+class singleton {
+
+	property name="productService" inject="ProductService";
+	property name="log"            inject="logbox:logger:{this}";
+	property name="settings"       inject="coldbox:moduleSettings:inventory";
+
+	query function levels() {
+		return variables.productService.list();
+	}
+
+	/** Reserves stock. Throws InsufficientStock when there is not enough, which the handler answers with a 409. */
+	numeric function reserve( required numeric productId, required numeric qty ) {
+		var p = variables.productService.find( arguments.productId );
+		if ( !p.recordCount ) {
+			throw( type = "UnknownProduct", message = "Product #arguments.productId# does not exist" );
+		}
+		if ( p.stock < arguments.qty ) {
+			throw( type = "InsufficientStock", message = "Only #p.stock# of #p.sku# in stock, #arguments.qty# wanted" );
+		}
+		queryExecute( "UPDATE products SET stock = stock - :q WHERE id = :id", { q : arguments.qty, id : arguments.productId } );
+		return p.stock - arguments.qty;
+	}
+
+	/** Throws when a product is out of stock: what the restock-check task reports. */
+	struct function restockCheck() {
+		var low = variables.productService.lowStock( variables.settings.lowStockThreshold );
+		var out = low.filter( ( r ) => r.stock == 0 );
+		if ( out.recordCount ) {
+			throw( type = "OutOfStockError", message = "#out.recordCount# products are out of stock, first: #out.sku#" );
+		}
+		return { low : low.recordCount };
+	}
+
+	/** A slow stock sync. */
+	struct function sync( numeric ms = 0 ) {
+		var began = getTickCount();
+		sleep( arguments.ms ? arguments.ms : variables.settings.syncDelayMs );
+		var n = variables.productService.list().recordCount;
+		variables.log.info( "stock sync of #n# products took #getTickCount() - began# ms" );
+		return { products : n, ms : getTickCount() - began };
+	}
+
+}

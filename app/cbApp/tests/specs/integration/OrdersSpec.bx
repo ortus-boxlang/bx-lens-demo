@@ -1,0 +1,50 @@
+/**
+ * The order pages: list, detail, the N+1 and the joined version, and the slow report.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Orders handler", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			it( "lists orders with a total", () => {
+				var event = this.get( "orders.index" );
+				expect( event.getPrivateValue( "orders" ).recordCount ).toBe( 15 );
+				expect( event.getPrivateValue( "total" ) ).toBeGTE( 300 );
+			} );
+
+			it( "filters by status", () => {
+				var event = this.get( "orders.index", { status : "shipped" } );
+				expect( event.getPrivateValue( "orders" ).status ).toInclude( "shipped" );
+			} );
+
+			it( "shows one order with its lines", () => {
+				var event = this.get( "orders.show", { id : 10001 } );
+				expect( event.getPrivateValue( "order" ).recordCount ).toBe( 1 );
+				expect( event.getPrivateValue( "lines" ).recordCount ).toBeGTE( 1 );
+			} );
+
+			it( "answers 404 for an order that does not exist", () => {
+				var event = this.get( "orders.show", { id : 999999 } );
+				expect( event.getCurrentView() ).toBe( "main/notFound" );
+			} );
+
+			it( "returns the same rows from the N+1 page and the joined page", () => {
+				var lazy   = this.get( "orders.nPlusOne", { limit : 10 } ).getPrivateValue( "rows" );
+				var joined = this.get( "orders.joined", { limit : 10 } ).getPrivateValue( "rows" );
+				expect( lazy.len() ).toBe( 10 );
+				expect( lazy ).toBe( joined );
+			} );
+
+			it( "runs the slow report", () => {
+				var event = this.get( "orders.slowReport" );
+				expect( event.getPrivateValue( "report" ).pairs ).toBeGT( 0 );
+			} );
+
+		} );
+	}
+
+}

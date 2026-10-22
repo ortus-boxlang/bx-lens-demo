@@ -1,0 +1,22 @@
+/**
+ * Inventory: stock levels, reservations that can fail, and a stock cache that is slow to build. Entry point /inventory.
+ */
+class {
+
+	this.title              = "inventory";
+	this.author             = "BxLens demo";
+	this.description        = "Stock levels and reservations";
+	this.version            = "1.0.0";
+	this.viewParentLookup   = true;
+	this.layoutParentLookup = true;
+	this.entryPoint         = "inventory";
+	this.modelNamespace     = "inventory";
+	this.cfmapping          = "inventory";
+	this.autoMapModels      = true;
+	this.dependencies       = [];
+
+	function configure() {
+		variables.settings = { lowStockThreshold : 5, syncDelayMs : 4000 };
+	}
+
+}

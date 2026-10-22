@@ -1,0 +1,24 @@
+{
+    "name":"qb-boxlang@be",
+    "app":{
+        "serverHomeDirectory":".engine/boxlangBE",
+        "cfengine":"boxlang@be"
+    },
+    "web":{
+        "http":{
+            "port":"60298"
+        },
+        "rewrites":{
+            "enable":"true"
+        }
+    },
+    "JVM":{
+        "heapSize":"1024",
+        "javaVersion":"openjdk21_jre"
+    },
+    "openBrowser":"false",
+    "env":{},
+    "scripts":{
+        "onServerInitialInstall":"install bx-esapi --noSave"
+    }
+}

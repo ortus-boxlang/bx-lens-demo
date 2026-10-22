@@ -1,0 +1,8 @@
+<bx:output>
+<h1>#encodeForHTML( prc.title )#</h1>
+<p>#arrayLen( prc.rows )# orders.</p>
+<table>
+	<tr><th>Order</th><th>Customer</th><th style="text-align:right">Total</th></tr>
+	<bx:loop array="#prc.rows#" item="r"><tr><td>#r.order#</td><td>#encodeForHTML( r.customer )#</td><td style="text-align:right">#money( r.total )#</td></tr></bx:loop>
+</table>
+</bx:output>

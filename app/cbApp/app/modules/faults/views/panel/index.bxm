@@ -1,0 +1,13 @@
+<bx:output>
+<h1>Faults</h1>
+<p>State: <span class="pill #prc.active ? 'err' : 'ok'#">#prc.active ? prc.state.mode & ' at ' & prc.state.rate & ' percent' : 'off'#</span>
+	<bx:if prc.active><small>until #timeFormat( prc.state.until, 'HH:mm:ss' )#</small></bx:if>
+	<span class="pill">#prc.state.injectedLatency# slowed</span> <span class="pill">#prc.state.injectedErrors# failed</span></p>
+<p>
+	<a class="btn go" href="/cbApp/public/index.bxm/faults/panel/set?mode=latency&rate=40&latencyMs=1500&minutes=5">Latency: 40 percent of requests get 1.5 s</a>
+	<a class="btn go" href="/cbApp/public/index.bxm/faults/panel/set?mode=errors&rate=25&minutes=5">Errors: 25 percent of requests fail</a>
+	<a class="btn go" href="/cbApp/public/index.bxm/faults/panel/set?mode=mixed&rate=30&latencyMs=2000&minutes=5">Mixed: 30 percent, slow or failing</a>
+	<a class="btn reset" href="/cbApp/public/index.bxm/faults/panel/reset">Reset</a>
+</p>
+<p><small>The panel, the health check and the schedulers page are never affected.</small></p>
+</bx:output>

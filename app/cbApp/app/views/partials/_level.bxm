@@ -1,0 +1,8 @@
+<bx:script>
+	sleep( 15 );
+	writeOutput( '<div style="margin-left:14px;border-left:2px solid ##00a8c6;padding-left:8px">Level ' & args.level );
+	if ( args.level < args.max ) {
+		writeOutput( renderView( view = "partials/_level", args = { level : args.level + 1, max : args.max } ) );
+	}
+	writeOutput( '</div>' );
+</bx:script>

@@ -1,0 +1,951 @@
+component extends="qb.models.Grammars.BaseGrammar" singleton {
+
+    public boolean function supportsReturningRowsOnInsert() {
+        return true;
+    }
+
+    public boolean function supportsReturningRowsOnUpdate() {
+        return true;
+    }
+
+    public string function compileWhereInBulkValues( required string sqlType ) {
+        return "SELECT CAST(""value"" AS #arguments.sqlType#) FROM JSONB_ARRAY_ELEMENTS_TEXT(CAST(? AS JSONB)) AS ""qb_bulk_values""(""value"")";
+    }
+
+    public string function resolveWhereInBulkSqlType( required string sqlType ) {
+        var normalizedType = super.resolveWhereInBulkSqlType( arguments.sqlType );
+        switch ( normalizedType ) {
+            case "CHAR":
+            case "NCHAR":
+            case "VARCHAR":
+            case "NVARCHAR":
+            case "LONGVARCHAR":
+            case "LONGNVARCHAR":
+            case "CLOB":
+            case "NCLOB":
+                return "TEXT";
+            case "OTHER":
+            case "BIT":
+            case "TINYINT":
+                return "BOOLEAN";
+            default:
+                return normalizedType;
+        }
+    }
+
+    public string function compileJsonScalar( required struct jsonPath ) {
+        return compilePostgresJsonTraversal( arguments.jsonPath, true );
+    }
+
+    public string function compileJsonScalarComparison( required struct jsonPath, any value ) {
+        var scalar = compileJsonScalar( arguments.jsonPath );
+        if ( isNull( arguments.value ) ) {
+            return scalar;
+        }
+
+        var sqlType = getUtils().inferSqlType( arguments.value, this );
+        if ( listFindNoCase( "TINYINT,SMALLINT,INTEGER,BIGINT,DECIMAL,NUMERIC,REAL,FLOAT,DOUBLE", sqlType ) ) {
+            return "CAST(#scalar# AS NUMERIC)";
+        }
+        if ( listFindNoCase( "BIT,BOOLEAN,OTHER", sqlType ) ) {
+            return "CAST(#scalar# AS BOOLEAN)";
+        }
+        if ( listFindNoCase( "DATE,TIME,TIMESTAMP", sqlType ) ) {
+            return "CAST(#scalar# AS #sqlType#)";
+        }
+        return scalar;
+    }
+
+    public string function compileJsonContains( required struct jsonPath ) {
+        return "(#compilePostgresJsonTraversal( arguments.jsonPath, false )#)::jsonb @> ?::jsonb";
+    }
+
+    public string function compileJsonExists( required struct jsonPath ) {
+        return "#compilePostgresJsonTraversal( arguments.jsonPath, false )# IS NOT NULL";
+    }
+
+    public string function compileJsonLength( required struct jsonPath ) {
+        return "JSONB_ARRAY_LENGTH((#compilePostgresJsonTraversal( arguments.jsonPath, false )#)::jsonb)";
+    }
+
+    public any function prepareJsonContainsBinding( any value ) {
+        return isNull( arguments.value ) ? "null" : serializeJSON( arguments.value );
+    }
+
+    private string function compilePostgresJsonTraversal( required struct jsonPath, boolean scalar = false ) {
+        var sql = wrapJsonColumn( arguments.jsonPath );
+        var scalarExtraction = arguments.scalar;
+        var pathLength = arguments.jsonPath.path.len();
+        if ( scalarExtraction && pathLength == 0 ) {
+            return sql & chr( 35 ) & ">>'{}'";
+        }
+        for ( var index = 1; index <= arguments.jsonPath.path.len(); index++ ) {
+            var segment = arguments.jsonPath.path[ index ];
+            var operator = scalarExtraction && index == pathLength ? "->>" : "->";
+            var pathSegment = getUtils().isActuallyNumeric( segment ) ? segment : "'" & replace(
+                segment,
+                "'",
+                "''",
+                "all"
+            ) & "'";
+            sql &= operator & pathSegment;
+        }
+        return sql;
+    }
+
+    /**
+     * Creates a new Postgres Query Grammar.
+     *
+     * @utils A collection of query utilities. Default: qb.models.Query.QueryUtils
+     *
+     * @return qb.models.Grammars.PostgresGrammar
+     */
+    public PostgresGrammar function init( qb.models.Query.QueryUtils utils ) {
+        super.init( argumentCollection = arguments );
+
+        variables.cteColumnsRequireParentheses = true;
+
+        return this;
+    }
+
+    /**
+     * Compiles the lock portion of a sql statement.
+     *
+     * @query The Builder instance.
+     * @lockType The lock type to compile.
+     *
+     * @return string
+     */
+    private string function compileLockType( required query, required string lockType ) {
+        switch ( arguments.lockType ) {
+            case "shared":
+                return "FOR SHARE";
+            case "update":
+                return "FOR UPDATE";
+            case "updateSkipLocked":
+                return "FOR UPDATE SKIP LOCKED";
+            case "custom":
+                return arguments.query.getLockValue();
+            case "none":
+            case "nolock":
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * Compile a Builder's query into an insert string.
+     *
+     * @query The Builder instance.
+     * @columns The array of columns into which to insert.
+     * @values The array of values to insert.
+     *
+     * @return string
+     */
+    public string function compileInsert( required QueryBuilder query, required array columns, required array values ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.query.getShouldWrapValues() );
+            }
+
+            var wrappedReturningColumns = [];
+            for ( var column in arguments.query.getReturning() ) {
+                wrappedReturningColumns.append( wrapColumn( column ) );
+            }
+            var returningColumns = wrappedReturningColumns.toList( ", " );
+            var returningClause = returningColumns != "" ? " RETURNING #returningColumns#" : "";
+            return super.compileInsert( argumentCollection = arguments ) & returningClause;
+        } finally {
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    /**
+     * Compile a Builder's query into an insert string ignoring duplicate key values.
+     *
+     * @qb The Builder instance.
+     * @columns The array of columns into which to insert.
+     * @target The array of key columns to match.
+     * @values The array of values to insert.
+     *
+     * @return string
+     */
+    public string function compileInsertIgnore(
+        required QueryBuilder qb,
+        required array columns,
+        required array target,
+        required array values
+    ) {
+        var wrappedReturningColumns = [];
+        for ( var column in arguments.qb.getReturning() ) {
+            wrappedReturningColumns.append( wrapColumn( column ) );
+        }
+        var returningColumns = wrappedReturningColumns.toList( ", " );
+        var returningClause = returningColumns != "" ? " RETURNING #returningColumns#" : "";
+        return super.compileInsert( arguments.qb, arguments.columns, arguments.values ) & " ON CONFLICT DO NOTHING" & returningClause;
+    }
+
+    /**
+     * Compile a Builder's query into an update string.
+     *
+     * @query The Builder instance.
+     * @columns The array of columns into which to insert.
+     *
+     * @return string
+     */
+    public string function compileUpdate(
+        required QueryBuilder query,
+        required array columns,
+        required struct updateMap
+    ) {
+        if ( !arguments.query.getOrders().isEmpty() || !isNull( arguments.query.getOffsetValue() ) ) {
+            throw(
+                type = "UnsupportedOperation",
+                message = "PostgreSQL does not support direct ORDER BY or OFFSET clauses on UPDATE statements."
+            );
+        }
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.query.getShouldWrapValues() );
+            }
+
+            var updateAssignments = [];
+            for ( var column in arguments.columns ) {
+                var value = arguments.updateMap[ column.original ];
+                var assignment = "?";
+                if ( utils.isExpression( value ) ) {
+                    assignment = value.getSql();
+                } else if ( utils.isBuilder( value ) ) {
+                    assignment = "(#value.toSQL()#)";
+                }
+                updateAssignments.append( "#wrapColumn( column.formatted )# = #assignment#" );
+            }
+            var updateList = updateAssignments.toList( ", " );
+
+            var updateStatement = "UPDATE #wrapQueryTable( query )# SET #updateList#";
+
+            var joins = arguments.query.getJoins();
+
+            if ( joins.isEmpty() ) {
+                updateStatement = trim( "#updateStatement# #compileWheres( query, query.getWheres() )#" );
+            }
+
+            updateStatement = trim( "#updateStatement# #compileLimitValue( query, query.getLimitValue() )#" );
+
+            var wrappedReturningColumns = [];
+            for ( var column in arguments.query.getReturning() ) {
+                wrappedReturningColumns.append( wrapColumn( column ) );
+            }
+            var returningColumns = wrappedReturningColumns.toList( ", " );
+            var returningClause = returningColumns != "" ? " RETURNING #returningColumns#" : "";
+
+            if ( joins.isEmpty() ) {
+                return trim(
+                    compileCommonTables( query, query.getCommonTables() ) & " " & updateStatement & returningClause
+                );
+            }
+
+            var joinedTables = [];
+            var predicates = [];
+            for ( var join in joins ) {
+                joinedTables.append( wrapTable( join.getTable() ) );
+                var predicate = trim( removeLeadingFilterKeyword( compileWheres( arguments.query, join.getWheres() ) ) );
+                if ( predicate != "" ) {
+                    predicates.append( predicate );
+                }
+            }
+            var queryPredicate = trim(
+                removeLeadingFilterKeyword( compileWheres( arguments.query, query.getWheres() ) )
+            );
+            if ( queryPredicate != "" ) {
+                predicates.append( queryPredicate );
+            }
+
+            updateStatement &= " FROM #joinedTables.toList( ", " )#";
+            if ( !predicates.isEmpty() ) {
+                updateStatement &= " WHERE #predicates.toList( " AND " )#";
+            }
+
+            return trim(
+                compileCommonTables( query, query.getCommonTables() ) & " " & updateStatement & returningClause
+            );
+        } finally {
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    public array function getUpdateBindingOrder( required QueryBuilder query ) {
+        return [
+            "commonTables",
+            "from",
+            "update",
+            "join",
+            "where",
+            "groupBy",
+            "having",
+            "orderBy",
+            "union"
+        ];
+    }
+
+    /**
+     * Compile a Builder's query into a delete string.
+     *
+     * @query The Builder instance.
+     *
+     * @return string
+     */
+    public string function compileDelete( required QueryBuilder query ) {
+        if (
+            !arguments.query.getOrders().isEmpty() ||
+            !isNull( arguments.query.getLimitValue() ) ||
+            !isNull( arguments.query.getOffsetValue() )
+        ) {
+            throw(
+                type = "UnsupportedOperation",
+                message = "PostgreSQL does not support direct ORDER BY, LIMIT, or OFFSET clauses on DELETE statements."
+            );
+        }
+        if ( !arguments.query.getJoins().isEmpty() ) {
+            throw(
+                type = "UnsupportedOperation",
+                message = "This grammar does not support DELETE actions with JOIN clause(s)."
+            );
+        }
+
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.query.getShouldWrapValues() );
+            }
+
+            var wrappedReturningColumns = [];
+            for ( var column in arguments.query.getReturning() ) {
+                wrappedReturningColumns.append( wrapColumn( column ) );
+            }
+            var returningColumns = wrappedReturningColumns.toList( ", " );
+            var returningClause = returningColumns != "" ? " RETURNING #returningColumns#" : "";
+            return trim(
+                compileCommonTables( query, query.getCommonTables() ) & " DELETE FROM #wrapQueryTable( query )# #compileWheres( query, query.getWheres() )##returningClause#"
+            );
+        } finally {
+            if ( !isNull( arguments.query.getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    public string function compileUpsert(
+        required QueryBuilder qb,
+        required array insertColumns,
+        required array values,
+        required array updateColumns,
+        required any updates,
+        required array target,
+        QueryBuilder source,
+        any deleteUnmatched = false,
+        boolean matchNulls = false
+    ) {
+        if ( arguments.matchNulls ) {
+            throw(
+                type = "UnsupportedOperation",
+                message = "This grammar does not support matching NULL target values during an upsert"
+            );
+        }
+        if ( !isBoolean( arguments.deleteUnmatched ) || arguments.deleteUnmatched ) {
+            throw( type = "UnsupportedOperation", message = "This grammar does not support DELETE in a upsert clause" );
+        }
+
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.qb.getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.qb.getShouldWrapValues() );
+            }
+
+            var insertString = isNull( arguments.source ) ? super.compileInsert(
+                arguments.qb,
+                arguments.insertColumns,
+                arguments.values
+            ) : this.compileInsertUsing( arguments.qb, arguments.insertColumns, arguments.source );
+            var updateString = "";
+            if ( isArray( arguments.updates ) ) {
+                var updateAssignments = [];
+                for ( var column in arguments.updateColumns ) {
+                    updateAssignments.append(
+                        "#wrapColumn( column.formatted )# = EXCLUDED.#wrapColumn( column.formatted )#"
+                    );
+                }
+                updateString = updateAssignments.toList( ", " );
+            } else {
+                var updateAssignments = [];
+                for ( var column in arguments.updateColumns ) {
+                    var equalsClause = "?";
+                    if (
+                        !isNull( arguments.updates[ column.original ] ) && getUtils().isExpression(
+                            arguments.updates[ column.original ]
+                        )
+                    ) {
+                        equalsClause = arguments.updates[ column.original ].getSQL();
+                    }
+                    updateAssignments.append( "#wrapColumn( column.formatted )# = #equalsClause#" );
+                }
+                updateString = updateAssignments.toList( ", " );
+            }
+
+            var wrappedTargetColumns = [];
+            for ( var column in arguments.target ) {
+                wrappedTargetColumns.append( wrapColumn( column.formatted ) );
+            }
+            var constraintString = wrappedTargetColumns.toList( ", " );
+
+            var wrappedReturningColumns = [];
+            for ( var column in arguments.qb.getReturning() ) {
+                wrappedReturningColumns.append( wrapColumn( column ) );
+            }
+            var returningColumns = wrappedReturningColumns.toList( ", " );
+            var returningClause = returningColumns != "" ? " RETURNING #returningColumns#" : "";
+
+            return insertString & " ON CONFLICT (#constraintString#) DO UPDATE SET #updateString##returningClause#";
+        } finally {
+            if ( !isNull( arguments.qb.getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    /*===================================
+    =              Schema               =
+    ===================================*/
+
+    function compileCreateColumn( column, blueprint ) {
+        if ( utils.isExpression( column ) ) {
+            return column.getSql();
+        }
+
+        try {
+            if ( !column.isColumn() ) {
+                throw( message = "Not a Column" );
+            }
+        } catch ( any e ) {
+            // exception happens when isColumn returns false or is not a method on the column object
+            throw(
+                type = "InvalidColumn",
+                message = "Recieved a TableIndex instead of a Column when trying to create a Column.",
+                detail = "Did you maybe try to add a column and a constraint in an ALTER clause at the same time? Split those up in to separate addColumn and addConstraint commands."
+            );
+        }
+
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                wrapColumn( { "type": "simple", "value": column.getName() } ),
+                generateType( column, blueprint ),
+                modifyUnsigned( column ),
+                generateNullConstraint( column ),
+                generateComputed( column ),
+                generateUniqueConstraint( column, blueprint ),
+                generateAutoIncrement( column, blueprint ),
+                generateDefault( column, blueprint ),
+                generateComment( column, blueprint )
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function generateUniqueConstraint( column ) {
+        return column.getIsUnique() ? "UNIQUE" : "";
+    }
+
+    function modifyUnsigned( column ) {
+        return "";
+    }
+
+    function generateComputed( column ) {
+        if ( column.getComputedType() == "none" ) {
+            return "";
+        }
+
+        return "GENERATED ALWAYS AS (#column.getComputedDefinition()#) STORED";
+    }
+
+    function generateAutoIncrement( column ) {
+        return "";
+    }
+
+    function generateComment( column, blueprint ) {
+        if ( column.getCommentValue() != "" ) {
+            blueprint.addCommand( "addComment", { table: blueprint.getTable(), column: column } );
+        }
+        return "";
+    }
+
+    function wrapDefaultType( column ) {
+        var defaultValue = column.getDefaultValue();
+        if ( shouldQuoteDefaultValue( arguments.column ) ) {
+            return quoteStringLiteral( defaultValue );
+        }
+
+        // Normalize PostgreSQL cast shorthand (value::TYPE) so runtimes that
+        // parse ":" for named params don't break schema DDL execution.
+        var castPosition = 0;
+        for ( var i = len( defaultValue ) - 1; i >= 1; i-- ) {
+            if ( mid( defaultValue, i, 2 ) == "::" ) {
+                castPosition = i;
+                break;
+            }
+        }
+        if ( castPosition > 0 ) {
+            var valuePart = trim( left( defaultValue, castPosition - 1 ) );
+            var typePart = trim( mid( defaultValue, castPosition + 2, len( defaultValue ) ) );
+            if ( typePart != "" ) {
+                defaultValue = "CAST(#valuePart# AS #typePart#)";
+            }
+        }
+
+        switch ( column.getType() ) {
+            case "boolean":
+                return uCase( defaultValue );
+            default:
+                return defaultValue;
+        }
+    }
+
+    /*=======================================
+    =            Blueprint: Drop            =
+    =======================================*/
+
+    function compileRenameColumn( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                "ALTER TABLE",
+                wrapTable( blueprint.getTable() ),
+                "RENAME COLUMN",
+                wrapColumn( { "type": "simple", "value": commandParameters.from } ),
+                "TO",
+                wrapColumn( { "type": "simple", "value": commandParameters.to.getName() } )
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileModifyColumn( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                "ALTER TABLE",
+                wrapTable( blueprint.getTable() ),
+                "ALTER COLUMN",
+                wrapColumn( { "type": "simple", "value": commandParameters.to.getName() } ),
+                "TYPE",
+                generateType( commandParameters.to, blueprint ) & ",",
+                "ALTER COLUMN",
+                wrapColumn( { "type": "simple", "value": commandParameters.to.getName() } ),
+                commandParameters.to.getIsNullable() ? "DROP" : "SET",
+                "NOT NULL"
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileDrop( required blueprint ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                "DROP TABLE",
+                generateIfExists( blueprint ),
+                wrapTable( blueprint.getTable() ),
+                "CASCADE"
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileDropColumn( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            // This used to be a ternary, but ACF didn't choose the right branch
+            var columnString = "";
+            if ( isSimpleValue( commandParameters.name ) ) {
+                columnString = wrapColumn( { "type": "simple", "value": commandParameters.name } );
+            } else {
+                columnString = wrapColumn( { "type": "simple", "value": commandParameters.name.getName() } );
+            }
+
+            return concatenate( [
+                "ALTER TABLE",
+                wrapTable( blueprint.getTable() ),
+                "DROP COLUMN",
+                columnString,
+                "CASCADE"
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileDropConstraint( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return "ALTER TABLE #wrapTable( blueprint.getTable() )# DROP CONSTRAINT #wrapValue( commandParameters.name )#";
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileDropIndex( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            var indexName = qualifyObjectNameForTable( blueprint.getTable(), commandParameters.name );
+            return "DROP INDEX #wrapTable( indexName )#";
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileDropAllObjects( required struct options, string schema = "", SchemaBuilder sb ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.sb.getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.sb.getShouldWrapValues() );
+            }
+
+            var tables = getAllTableNames( options, schema );
+            var wrappedTables = [];
+            for ( var table in tables ) {
+                wrappedTables.append( wrapTable( table ) );
+            }
+            var statements = [];
+            if ( !arrayIsEmpty( tables ) ) {
+                statements.append( "DROP TABLE #wrappedTables.toList( ", " )# CASCADE" );
+            }
+            // Dropping tables removes their triggers, but leaves standalone routines behind.
+            // Discover before executing any drops: table dependencies can remove some routines,
+            // so each routine drop must tolerate it having disappeared already.
+            // Use qualified catalog type names (e.g. pg_catalog.timestamptz) in signatures.
+            // This avoids search_path ambiguity and JDBC parsing WITH in timestamp type aliases.
+            var routines = runQuery(
+                "SELECT format('DROP %s IF EXISTS %I.%I(%s) CASCADE', CASE WHEN p.prokind = 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END, n.nspname, p.proname, COALESCE((SELECT string_agg(format('%I.%I', tn.nspname, t.typname), ', ' ORDER BY a.position) FROM generate_subscripts(p.proargtypes, 1) a(position) JOIN pg_type t ON t.oid = p.proargtypes[a.position] JOIN pg_namespace tn ON tn.oid = t.typnamespace), '')) AS drop_statement FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ? AND p.prokind IN ('f', 'p', 'w') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = CAST('pg_proc' AS regclass) AND d.objid = p.oid AND d.refclassid = CAST('pg_extension' AS regclass) AND d.deptype = 'e') ORDER BY p.oid",
+                [ arguments.schema == "" ? "public" : arguments.schema ],
+                arguments.options,
+                "query"
+            );
+            for ( var routine in routines ) {
+                statements.append( routine.drop_statement );
+            }
+            return statements;
+        } finally {
+            if ( !isNull( arguments.sb.getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function getAllTableNames( options, schema = "" ) {
+        var effectiveSchema = arguments.schema == "" ? "public" : arguments.schema;
+        var sql = "SELECT #wrapColumn( { "type": "simple", "value": "table_name" } )# FROM #wrapTable( "information_schema.tables" )# WHERE #wrapColumn( { "type": "simple", "value": "table_schema" } )# = ? AND #wrapColumn( { "type": "simple", "value": "table_type" } )# = 'BASE TABLE'";
+        var args = [ effectiveSchema ];
+        var tablesQuery = runQuery( sql, args, options, "query" );
+        var tables = [];
+        for ( var table in tablesQuery ) {
+            arrayAppend( tables, "#effectiveSchema#.#table[ "table_name" ]#" );
+        }
+        return tables;
+    }
+
+    function compileTableExists( tableName, schemaName = "" ) {
+        var sql = "SELECT 1 FROM #wrapTable( "information_schema.tables" )# WHERE #wrapColumn( { "type": "simple", "value": "table_name" } )# = ?";
+        if ( schemaName != "" ) {
+            sql &= " AND #wrapColumn( { "type": "simple", "value": "table_schema" } )# = ?";
+        }
+        return sql;
+    }
+
+    /*========================================
+    =            Blueprint: Alter            =
+    ========================================*/
+
+    function compileAddColumn( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                "ALTER TABLE",
+                wrapTable( blueprint.getTable() ),
+                "ADD COLUMN",
+                compileCreateColumn( commandParameters.column, blueprint )
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    function compileRenameConstraint( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            return concatenate( [
+                "ALTER TABLE",
+                wrapTable( blueprint.getTable() ),
+                "RENAME CONSTRAINT",
+                wrapColumn( { "type": "simple", "value": commandParameters.from } ),
+                "TO",
+                wrapColumn( { "type": "simple", "value": commandParameters.to } )
+            ] );
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+    /*===================================
+    =           Column Types            =
+    ===================================*/
+
+    function typeBinary( column ) {
+        return "BYTEA";
+    }
+
+    function typeBoolean( column ) {
+        return "BOOLEAN";
+    }
+
+    public string function getBooleanSqlType() {
+        return "OTHER";
+    }
+
+    function typeGUID( column ) {
+        return "UUID";
+    }
+
+    public any function convertBooleanValue( required any value ) {
+        return !!arguments.value;
+    }
+
+    function typeDatetime( column ) {
+        return typeTimestamp( column );
+    }
+
+    function typeDatetimeTz( column ) {
+        return typeTimestampTz( column );
+    }
+
+    function typeEnum( column ) {
+        var typeName = qualifyObjectNameForTable( column.getBlueprint().getTable(), column.getName() );
+        return wrapTable( typeName );
+    }
+
+    function typeFloat( column ) {
+        return typeDecimal( column );
+    }
+
+    function typeInteger( column ) {
+        if ( column.getAutoIncrement() ) {
+            return "SERIAL";
+        }
+
+        if ( !isNull( column.getPrecision() ) ) {
+            return "NUMERIC(#column.getPrecision()#)";
+        }
+
+        return "INTEGER";
+    }
+
+    function typeJson( column ) {
+        return "JSON";
+    }
+
+    function typeJsonb( column ) {
+        return "JSONB";
+    }
+
+    function typeBigInteger( column ) {
+        if ( column.getAutoIncrement() ) {
+            return "BIGSERIAL";
+        }
+
+        if ( !isNull( column.getPrecision() ) ) {
+            return "NUMERIC(#column.getPrecision()#)";
+        }
+
+        return "BIGINT";
+    }
+
+    function typeLineString( column ) {
+        return formatPostGisType( "linestring" );
+    }
+
+    function typeMediumInteger( column ) {
+        if ( column.getAutoIncrement() ) {
+            return "SERIAL";
+        }
+
+        if ( !isNull( column.getPrecision() ) ) {
+            return "NUMERIC(#column.getPrecision()#)";
+        }
+
+        return "INTEGER";
+    }
+
+    function typeMoney( column ) {
+        return "MONEY";
+    }
+
+    function typeSmallMoney( column ) {
+        return typeMoney( column );
+    }
+
+    function typePoint( column ) {
+        return formatPostGisType( "point" );
+    }
+
+    function typePolygon( column ) {
+        return formatPostGisType( "polygon" );
+    }
+
+    function typeSmallInteger( column ) {
+        if ( column.getAutoIncrement() ) {
+            return "SERIAL";
+        }
+
+        if ( !isNull( column.getPrecision() ) ) {
+            return "NUMERIC(#column.getPrecision()#)";
+        }
+
+        return "SMALLINT";
+    }
+
+    function typeUnicodeString( column ) {
+        return typeString( argumentCollection = arguments );
+    }
+
+    function typeUnicodeText( column ) {
+        return typeText( argumentCollection = arguments );
+    }
+
+    function typeTimeTz( column ) {
+        return "TIME WITH TIME ZONE";
+    }
+
+    function typeTimestampTz( column ) {
+        return typeTimestamp( column ) & " WITH TIME ZONE";
+    }
+
+    function typeTinyInteger( column ) {
+        if ( column.getAutoIncrement() ) {
+            return "SERIAL";
+        }
+
+        if ( !isNull( column.getPrecision() ) ) {
+            return "NUMERIC(#column.getPrecision()#)";
+        }
+
+        return "SMALLINT";
+    }
+
+    private function formatPostGisType( type ) {
+        return "GEOGRAPHY(#uCase( type )#, 4326)";
+    }
+
+    /*===================================
+    =            Index Types            =
+    ===================================*/
+
+    function indexBasic( index, blueprint ) {
+        blueprint.addCommand( "addIndex", { index: arguments.index, table: blueprint.getTable() } );
+        return "";
+    }
+
+    function indexUnique( index ) {
+        var wrappedReferences = [];
+        for ( var column in arguments.index.getColumns() ) {
+            wrappedReferences.append( wrapColumn( { "type": "simple", "value": column } ) );
+        }
+        var references = wrappedReferences.toList( ", " );
+        return "CONSTRAINT #wrapValue( index.getName() )# UNIQUE (#references#)";
+    }
+
+    /*=====  End of Index Types  ======*/
+
+    function compileAddType( blueprint, commandParameters ) {
+        try {
+            var originalShouldWrapValues = getShouldWrapValues();
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() );
+            }
+
+            var values = [];
+            for ( var val in commandParameters.values ) {
+                values.append( quoteStringLiteral( val ) );
+            }
+            var typeName = qualifyObjectNameForTable( blueprint.getTable(), commandParameters.name );
+            return "CREATE TYPE #wrapTable( typeName )# AS ENUM (#arrayToList( values, ", " )#)";
+        } finally {
+            if ( !isNull( arguments.blueprint.getSchemaBuilder().getShouldWrapValues() ) ) {
+                setShouldWrapValues( originalShouldWrapValues );
+            }
+        }
+    }
+
+}

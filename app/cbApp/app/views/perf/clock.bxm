@@ -1,0 +1,8 @@
+<bx:script>
+	// The slow part is in the view itself, so a cached view skips it
+	sleep( 800 );
+</bx:script>
+<bx:output>
+<h1>View cache</h1>
+<p>The handler ran at #prc.builtAt#. This view took 800 ms to render and is cached for a minute: reload and the render is skipped.</p>
+</bx:output>

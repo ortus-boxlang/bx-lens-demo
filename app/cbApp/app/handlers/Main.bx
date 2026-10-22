@@ -1,0 +1,69 @@
+/**
+ * The home page, the scenario catalog, health, and the application wide exception and missing event handling.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="fixtures" inject="FixtureLoader";
+	property name="catalog"  inject="Catalog";
+	property name="log"      inject="logbox:logger:{this}";
+
+	function onAppInit( event, rc, prc ) {
+		variables.fixtures.load();
+	}
+
+	function onRequestStart( event, rc, prc ) {
+		prc.requestStart = getTickCount();
+	}
+
+	/** The control page: every scenario with what it shows and where to look in BxLens. */
+	function index( event, rc, prc ) {
+		prc.groups = variables.catalog.groups();
+		prc.counts = variables.fixtures.counts();
+		event.setView( "main/index" );
+	}
+
+	/** The catalog as JSON. The smoke test walks it. */
+	function scenarios( event, rc, prc ) {
+		return variables.catalog.flat();
+	}
+
+	/** The same list as plain text, "status url" per line, so a shell script needs no JSON parser. */
+	function scenariosText( event, rc, prc ) {
+		var lines = variables.catalog.flat().map( ( s ) => s.expect & " " & s.url );
+		return event.renderData( type = "text", data = lines.toList( char( 10 ) ), contentType = "text/plain" );
+	}
+
+	function health( event, rc, prc ) {
+		return { status : "ok", counts : variables.fixtures.counts(), time : now() };
+	}
+
+	/** Drop and reload the fixtures: a clean slate after the write scenarios. */
+	function reset( event, rc, prc ) {
+		variables.fixtures.load( force = true );
+		relocate( "main.index" );
+	}
+
+	/**
+	 * Every uncaught error in a handler, a view, a layout or a model lands here first. ColdBox then renders the customErrorTemplate
+	 * (views/main/errorPage.bxm). This is the place to log the error and tell BxLens about it.
+	 */
+	function onException( event, rc, prc ) {
+		var ex = prc.exception;
+		variables.log.error( "Unhandled #ex.getType()#: #ex.getMessage()#" );
+		reportToLens( ex.getExceptionStruct() );
+		prc.errorMessage = ex.getMessage();
+		prc.errorType    = ex.getType();
+		prc.errorDetail  = ex.getDetail();
+	}
+
+	/** Set as the invalidEventHandler: a URL that matches no handler or action. */
+	function notFound( event, rc, prc ) {
+		event.setHTTPHeader( statusCode = 404 );
+		prc.missingEvent = event.getValue( "event", "" );
+		if ( event.getCurrentRoutedURL().findNoCase( "api/" ) ) {
+			return event.renderData( type = "json", statusCode = 404, data = { error : true, message : "No such resource" } );
+		}
+		event.setView( view = "main/notFound", layout = "Main" );
+	}
+
+}

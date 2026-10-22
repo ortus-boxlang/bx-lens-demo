@@ -1,0 +1,11 @@
+/**
+ * CircularA needs CircularB in its constructor and CircularB needs CircularA: WireBox reports a circular dependency.
+ */
+class {
+
+	function init( required CircularB b inject="faulty.CircularB" ) {
+		variables.b = arguments.b;
+		return this;
+	}
+
+}

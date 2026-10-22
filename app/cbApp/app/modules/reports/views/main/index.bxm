@@ -1,0 +1,11 @@
+<bx:output>
+<h1>Reports</h1>
+<p><span class="pill">#prc.summary.orders# orders</span> <span class="pill ok">revenue #money( prc.summary.revenue )#</span> <span class="pill slow">#prc.summary.stale# stale open orders</span></p>
+<table>
+	<tr><th>Country</th><th>Orders</th><th style="text-align:right">Revenue</th></tr>
+	<bx:loop query="prc.countries">
+		<tr><td>#prc.countries.country#</td><td>#prc.countries.orders#</td><td style="text-align:right">#money( prc.countries.revenue )#</td></tr>
+	</bx:loop>
+</table>
+<p><a class="btn" href="/cbApp/public/index.bxm/reports/main/build">Build the full report (slow)</a> <a class="btn" href="/cbApp/public/index.bxm/reports/main/export">Download CSV</a></p>
+</bx:output>

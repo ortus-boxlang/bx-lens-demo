@@ -1,0 +1,42 @@
+/**
+ * The home page, the scenario catalog, health and the 404 handling.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Main handler", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			it( "renders the scenario catalog on the home page", () => {
+				var event = this.get( "main.index" );
+				expect( event.getCurrentView() ).toBe( "main/index" );
+				expect( event.getPrivateValue( "groups" ) ).toBeArray().notToBeEmpty();
+				expect( event.getPrivateValue( "counts" ).orders ).toBeGTE( 300 );
+			} );
+
+			it( "answers the health check with the fixture counts", () => {
+				var event = this.get( "main.health" );
+				var data  = event.getHandlerResults();
+				expect( data.status ).toBe( "ok" );
+				expect( data.counts.customers ).toBe( 40 );
+			} );
+
+			it( "lists every scenario as JSON for the smoke test", () => {
+				var event = this.get( "main.scenarios" );
+				var rows  = event.getHandlerResults();
+				expect( rows.len() ).toBeGT( 50 );
+				expect( rows[ 1 ] ).toHaveKey( "url" ).toHaveKey( "expect" );
+			} );
+
+			it( "answers 404 for an event that does not exist", () => {
+				var event = this.get( "nosuchhandler.index" );
+				expect( event.getCurrentView() ).toBe( "main/notFound" );
+			} );
+
+		} );
+	}
+
+}

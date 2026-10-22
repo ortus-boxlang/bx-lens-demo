@@ -1,0 +1,16 @@
+class extends="quick.models.BaseEntity" accessors="true" table="orders" {
+
+	property name="id";
+	property name="customer_id";
+	property name="status";
+	property name="total";
+
+	function customer() {
+		return belongsTo( "Customer", "customer_id" );
+	}
+
+	function lines() {
+		return hasMany( "OrderLine", "order_id" );
+	}
+
+}

@@ -1,0 +1,21 @@
+class extends="coldbox.system.EventHandler" {
+
+	property name="customerService" inject="CustomerService";
+
+	function index( event, rc, prc ) {
+		prc.customers = variables.customerService.list( 40, 0 );
+		event.setView( "customers/index" );
+	}
+
+	function show( event, rc, prc ) {
+		event.paramValue( "id", 0 );
+		prc.customer = variables.customerService.find( val( rc.id ) );
+		if ( !prc.customer.recordCount ) {
+			event.setHTTPHeader( statusCode = 404 );
+			return event.setView( view = "main/notFound", layout = "Main" );
+		}
+		prc.orders = variables.customerService.orders( val( rc.id ) );
+		event.setView( "customers/show" );
+	}
+
+}
