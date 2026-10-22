@@ -194,6 +194,8 @@ ColdBox manages these schedulers itself and does **not** register them with the 
 
 **Tests.** `app/cbApp/tests` has 47 TestBox specs (integration, API, errors, modules, schedulers, services). Run them at <http://localhost:8085/cbApp/tests/runner.bxm> or with `./test/smoke.sh`, which also walks every scenario of the catalog and checks its status.
 
+`lib/` holds the installed ColdBox, TestBox and modules, committed as they came from ForgeBox, except for two unused browser assets removed so GitHub code scanning stays quiet: ColdBox's Whoops error page (this app has its own error page) and TestBox's test visualizer.
+
 Good to know: a framework reinit (`?fwreinit=1`) takes 12 to 22 seconds here, because shutting down the schedulers waits for the long running tasks. That is a scenario in itself. The data survives a reinit, and **Reset the data** on the home page reloads it. After changing a model, reinit.
 
 ### CFML
