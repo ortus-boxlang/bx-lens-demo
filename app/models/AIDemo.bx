@@ -10,8 +10,9 @@ class {
 
 	function init( required numeric port, boolean agentsEnabled = false ) {
 		variables.agentsEnabled = arguments.agentsEnabled;
-		variables.metricsUrl = "http://127.0.0.1:#arguments.port#/~bxai/mcp.bxm?server=bxLensMetrics";
-		variables.ordersUrl = "http://127.0.0.1:#arguments.port#/~bxai/mcp.bxm?server=bxLensOperations";
+		var appOrigin = "http://127.0.0.1:#arguments.port#";
+		variables.metricsUrl = "#appOrigin#/~bxai/mcp.bxm?server=bxLensMetrics";
+		variables.ordersUrl = "#appOrigin#/~bxai/mcp.bxm?server=bxLensOperations";
 		return this;
 	}
 
