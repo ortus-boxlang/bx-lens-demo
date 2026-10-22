@@ -1,0 +1,35 @@
+/**
+ * The faults panel: choose a mode, a rate and a duration, or reset.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="faultState" inject="FaultState@faults";
+
+	function index( event, rc, prc ) {
+		prc.state  = variables.faultState.snapshot();
+		prc.active = variables.faultState.isActive();
+		prc.lookAt = [
+			"Switch a mode on, then browse the other pages: Console > Reports shows the p95 and the error rate moving, Requests the slow and failing ones.",
+			"Console > Errors: InjectedFault groups, and the chaos-monkey failures in the scheduler.",
+			"Reset ends it at once. It also ends by itself after the chosen minutes."
+		];
+		event.setView( "panel/index" );
+	}
+
+	/** /faults/panel/set?mode=latency|errors|mixed&rate=30&latencyMs=1500&minutes=5 */
+	function set( event, rc, prc ) {
+		variables.faultState.set(
+			mode      = rc.mode ?: "off",
+			rate      = val( rc.rate ?: 25 ),
+			latencyMs = val( rc.latencyMs ?: 1500 ),
+			minutes   = val( rc.minutes ?: 5 )
+		);
+		relocate( "faults:panel.index" );
+	}
+
+	function reset( event, rc, prc ) {
+		variables.faultState.reset();
+		relocate( "faults:panel.index" );
+	}
+
+}

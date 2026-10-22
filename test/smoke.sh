@@ -31,4 +31,15 @@ done
 sleep 2
 idle="$(curl -s "$BASE/index.bxm" | grep -c 'pill on')"
 if [ "$idle" = "0" ]; then echo "ok   everything reset"; else echo "FAIL $idle scenario(s) still running after reset"; fail=1; fi
+
+# The ColdBox app: every scenario of its catalog must answer the status it says, then its TestBox suite must pass
+if curl -s -o /dev/null -m 60 "$BASE/cbApp/public/index.bxm/main/health"; then
+	while read -r want path; do
+		[ -n "$path" ] && check "$want" "$path"
+	done < <(curl -s -m 120 "$BASE/cbApp/public/index.bxm/main/scenariosText")
+	summary="$(curl -s -m 600 "$BASE/cbApp/tests/runner.bxm?reporter=text" | grep -m1 'Passed:.*Bundles')"
+	if echo "$summary" | grep -q '\[Failed: 0\] \[Errors: 0\]'; then echo "ok   cbApp TestBox $summary"; else echo "FAIL cbApp TestBox: $summary"; fail=1; fi
+else
+	echo "skip cbApp (not answering)"
+fi
 exit $fail

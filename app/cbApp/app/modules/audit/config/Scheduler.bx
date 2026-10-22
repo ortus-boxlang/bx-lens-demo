@@ -1,0 +1,23 @@
+/**
+ * The audit scheduler, registered by ColdBox as cbScheduler@audit.
+ */
+class {
+
+	function configure() {
+		setTimezone( "UTC" );
+
+		// Healthy: counts the entries by kind every minute
+		task( "audit-rollup" )
+			.call( () => getInstance( "AuditLog@audit" ).rollup() )
+			.delay( 20, "seconds" )
+			.every( 60, "seconds" );
+
+		// Conditional: only purges once the log is large. With a small log it is registered, runs, and is skipped by when()
+		task( "audit-purge" )
+			.call( () => getInstance( "AuditLog@audit" ).purge( 100 ) )
+			.delay( 20, "seconds" )
+			.every( 60, "seconds" )
+			.when( () => getInstance( "AuditLog@audit" ).size() > 400 );
+	}
+
+}

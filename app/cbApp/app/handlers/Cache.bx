@@ -1,0 +1,35 @@
+/**
+ * CacheBox: what the caches hold and how they behave.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="cachebox" inject="cachebox";
+
+	function index( event, rc, prc ) {
+		prc.caches = [];
+		for ( var name in variables.cachebox.getCacheNames() ) {
+			var c = variables.cachebox.getCache( name );
+			var st = c.getStats();
+			prc.caches.append( { name : name, size : c.getSize(), hits : st.getHits(), misses : st.getMisses(), evictions : st.getEvictionCount(), hitRate : numberFormat( st.getCachePerformanceRatio(), "0.0" ) } );
+		}
+		prc.lookAt = [ "Console > Caches: the same caches with their counts, the key list and, with BoxLang+, values and actions." ];
+		event.setView( "cache/index" );
+	}
+
+	/** Writes 150 keys and reads random ones so the hit rate falls. */
+	function churn( event, rc, prc ) {
+		var c = variables.cachebox.getDefaultCache();
+		for ( var i = 1; i <= 150; i++ ) {
+			c.set( "churn-#i#", "value #i#", 1 );
+		}
+		var hits = 0;
+		for ( i = 1; i <= 100; i++ ) {
+			if ( !isNull( c.get( "churn-#randRange( 1, 600 )#" ) ) ) { hits++; }
+		}
+		prc.title  = "Cache churn";
+		prc.text   = "Wrote 150 keys and read 100 random keys from 600: #hits# hits.";
+		prc.lookAt = [ "Console > Caches: count grows by 150 every visit, hit rate drops." ];
+		event.setView( "perf/message" );
+	}
+
+}

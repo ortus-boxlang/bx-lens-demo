@@ -40,6 +40,7 @@
 		{ group : "Integrations (opt-in modules)", page : "/orm.bxm?save=1", title : "ORM", look : "Bar > Queries: Hibernate SQL with an ORM label. Console > ORM (BoxLang+): flushes, failures, statistics." },
 		{ group : "Integrations (opt-in modules)", page : "/orm.bxm?fail=1", title : "ORM failed insert", look : "Console > Errors and the failed ORM statement." },
 		{ group : "Integrations (opt-in modules)", page : "/mail.bxm", title : "Mail", look : "Console > Mail: message list, delivery steps, servers, spool and bounces. Needs a bx-mail release with the onMail events." },
+		{ group : "ColdBox application", page : "/cbApp/", title : "ColdBox demo app", look : "A ColdBox app with handlers, views, interceptors, four custom modules, five schedulers, Quick, qb, and 70 scenarios of errors and slow things. Its home page is its own control panel." },
 		{ group : "CFML compatibility", page : "/legacy/index.cfm", title : "CFML pages and components", look : "Same bar and console data from .cfm templates and a .cfc." }
 	];
 </bx:script>

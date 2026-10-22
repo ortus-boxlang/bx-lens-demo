@@ -1,0 +1,3 @@
+<bx:script>
+	throw( type = "DemoLayoutError", message = "A layout threw while it was rendering", detail = "layouts/Boom.bxm" );
+</bx:script>

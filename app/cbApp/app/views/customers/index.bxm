@@ -1,0 +1,9 @@
+<bx:output>
+<h1>Customers</h1>
+<table>
+	<tr><th>Id</th><th>Name</th><th>Country</th><th>Orders</th></tr>
+	<bx:loop query="prc.customers">
+		<tr><td>#prc.customers.id#</td><td><a href="#event.buildLink( linkTo = 'customers.show', queryString = 'id=' & prc.customers.id )#">#encodeForHTML( prc.customers.name )#</a></td><td>#prc.customers.country#</td><td>#prc.customers.orders#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>

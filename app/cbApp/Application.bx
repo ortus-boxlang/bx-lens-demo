@@ -1,0 +1,9 @@
+/**
+ * Only the forwarding page /cbApp/index.bxm runs under this one, so it does not start the main demo application.
+ * The ColdBox app itself is bootstrapped by public/Application.bx.
+ */
+class {
+
+	this.name = "bxLensDemoColdBoxForward";
+
+}

@@ -1,0 +1,192 @@
+/**
+ * The slow things a ColdBox app can do: a slow handler, query, view, partial chain, layout, helper, model start, interceptor, HTTP call,
+ * and what caching and parallel work look like. Every action explains what it did and where to look.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="orderService"  inject="OrderService";
+	property name="reportService" inject="ReportService";
+	property name="cachebox"      inject="cachebox";
+	property name="asyncManager"  inject="coldbox:asyncManager";
+	property name="log"           inject="logbox:logger:{this}";
+
+	function index( event, rc, prc ) {
+		relocate( "main.index" );
+	}
+
+	/** A handler that just waits. ?ms=1500 */
+	function slowHandler( event, rc, prc ) {
+		var ms = min( val( rc.ms ?: 1500 ), 10000 );
+		sleep( ms );
+		prc.title  = "Slow handler";
+		prc.text   = "The handler slept for #ms# ms before it chose a view.";
+		prc.lookAt = [ "Bar > Timeline: the request is dominated by one handler span.", "Console > In flight while it runs: the live stack points at the sleep.", "Console > Reports: p95 and the slowest URLs." ];
+		event.setView( "perf/message" );
+	}
+
+	/** A heavy self join: the database is the slow part. */
+	function slowQuery( event, rc, prc ) {
+		var began = getTickCount();
+		var r = variables.orderService.slowReport( heavy = true );
+		prc.title  = "Slow query";
+		prc.text   = "#r.pairs# pairs found by a three way join in #getTickCount() - began# ms.";
+		prc.lookAt = [ "Bar > Queries: one statement far over the slow query limit, with the line that ran it.", "Console > Queries: ranked first by total time." ];
+		event.setView( "perf/message" );
+	}
+
+	/** A view that renders a partial 300 times. Rendering, not the database, is the slow part. */
+	function slowView( event, rc, prc ) {
+		prc.orders = variables.orderService.list( 300, 0 );
+		prc.lookAt = [ "Bar > Timeline: hundreds of template spans for the same partial (turn the functions collector on).", "Bar > Templates: the partial dominates the template count and time." ];
+		event.setView( "perf/slowView" );
+	}
+
+	/** A partial that renders itself 12 levels deep. */
+	function nestedPartials( event, rc, prc ) {
+		prc.depth  = min( val( rc.depth ?: 12 ), 40 );
+		prc.lookAt = [ "Bar > Timeline: a staircase of nested template spans.", "A deep chain makes the stack long: look at it in Console > In flight if you add ?depth=40." ];
+		event.setView( "perf/nested" );
+	}
+
+	/** A layout that sleeps before it wraps the view. */
+	function slowLayout( event, rc, prc ) {
+		prc.title  = "Slow layout";
+		prc.text   = "This view is quick. The Slow layout around it waited 800 ms.";
+		prc.lookAt = [ "Bar > Timeline: the time is in the layout, after the handler and the view have finished." ];
+		event.setLayout( "Slow" );
+		event.setView( "perf/message" );
+	}
+
+	/** A helper function called for every cell: 200 calls of 4 ms. */
+	function slowHelper( event, rc, prc ) {
+		prc.lookAt = [ "Bar > Timeline with the functions collector on: 200 calls to slowFormat.", "Bar > BIFs: 200 sleep calls." ];
+		event.setView( "perf/slowHelper" );
+	}
+
+	/** The first request builds a singleton that takes 3 seconds in onDIComplete. Reinit (?fwreinit=1) to pay for it again. */
+	function slowModel( event, rc, prc ) {
+		var began = getTickCount();
+		var m = getInstance( "SlowInit" );
+		prc.title  = "Slow model construction";
+		prc.text   = "getInstance( SlowInit ) took #getTickCount() - began# ms. The first request pays the 3 seconds, the rest are instant until the next reinit.";
+		prc.lookAt = [ "Run it twice: only the first request is slow.", "Console > Logs: SlowInit logs a warning with its build time." ];
+		event.setView( "perf/message" );
+	}
+
+	/** A slow interceptor: the SlowInterceptor sleeps in preProcess when ?slowIntercept=ms is on the URL. */
+	function slowInterceptor( event, rc, prc ) {
+		prc.title  = "Slow interceptor";
+		prc.text   = "slowIntercept was #val( rc.slowIntercept ?: 0 )# ms. The wait happened in an interceptor before this handler ran.";
+		prc.lookAt = [ "Bar > Timeline: the gap is before the handler starts, not inside it.", "Console > Reports: every event pays this when an interceptor is slow." ];
+		event.setView( "perf/message" );
+	}
+
+	/** An outbound HTTP call to a slow handler of this same app. */
+	function slowHttp( event, rc, prc ) {
+		var target = "http://#cgi.http_host#/cbApp/public/index.bxm/perf/slowHandler?ms=1200";
+		bx:http url="#target#" result="httpResult" timeout="10";
+		prc.title  = "Slow HTTP call";
+		prc.text   = "The call answered #httpResult.statusCode# after about 1200 ms.";
+		prc.lookAt = [ "Bar > HTTP: one call, slow.", "Console > HTTP: the endpoint ranked by latency.", "The request and the call it makes are both requests: look at both in Requests." ];
+		event.setView( "perf/message" );
+	}
+
+	/** Event caching: the first call is slow, the second within a minute is served from the cache. */
+	function eventCached( event, rc, prc ) cache="true" cacheTimeout="1" {
+		sleep( 1000 );
+		prc.title  = "Event cache";
+		prc.text   = "This event was built at #timeFormat( now(), 'HH:mm:ss' )#. Reload within a minute and the whole event comes from CacheBox, fast.";
+		prc.lookAt = [ "Bar > Timeline: the first hit has the 1 second sleep, the cached hit has none and no handler span.", "Console > Caches: the event cache entry." ];
+		event.setView( "perf/message" );
+	}
+
+	/** View caching: the handler still runs, the 800 ms render is cached. */
+	function viewCached( event, rc, prc ) {
+		prc.builtAt = timeFormat( now(), "HH:mm:ss" );
+		prc.lookAt  = [ "Bar > Timeline: the first hit renders the slow view, later hits skip it.", "Console > Caches: the view cache entry." ];
+		event.setView( view = "perf/clock", cache = true, cacheTimeout = 1 );
+	}
+
+	/** A miss storm on the default cache: 80 reads, almost all misses, then the loads that fill it. */
+	function cacheStorm( event, rc, prc ) {
+		var cache = variables.cachebox.getDefaultCache();
+		var hits = 0; var misses = 0;
+		for ( var i = 1; i <= 80; i++ ) {
+			var key = "storm-#randRange( 1, 1500 )#";
+			if ( isNull( cache.get( key ) ) ) {
+				misses++;
+				cache.set( key, "value #i#", 1 );
+			} else {
+				hits++;
+			}
+		}
+		prc.title  = "Cache storm";
+		prc.text   = "80 reads: #hits# hits and #misses# misses. Reload to fill the cache more.";
+		prc.lookAt = [ "Console > Caches: the default cache count grows and its hit rate stays low." ];
+		event.setView( "perf/message" );
+	}
+
+	/** Five nested runEvent calls, each doing a little work and a query. */
+	function runEventChain( event, rc, prc ) {
+		prc.result = runEvent( event = "perf.step", eventArguments = { level : 1 }, private = true );
+		prc.title  = "runEvent chain";
+		prc.text   = "Five nested runEvent calls returned: #prc.result#";
+		prc.lookAt = [ "Bar > Timeline: handler spans nested five deep, each with its own query.", "Bar > Queries: five small queries, one per level." ];
+		event.setView( "perf/message" );
+	}
+
+	private function step( event, rc, prc, numeric level = 1 ) {
+		sleep( 120 );
+		queryExecute( "SELECT COUNT(*) AS n FROM orders WHERE id > :id", { id : arguments.level * 10000 } );
+		if ( arguments.level < 5 ) {
+			return arguments.level & " > " & runEvent( event = "perf.step", eventArguments = { level : arguments.level + 1 }, private = true );
+		}
+		return arguments.level;
+	}
+
+	/** The same work sequentially and in parallel on a ColdBox executor. */
+	function parallel( event, rc, prc ) {
+		var items = [ 1, 2, 3, 4, 5, 6, 7, 8 ];
+		var began = getTickCount();
+		items.each( ( i ) => sleep( 300 ) );
+		prc.sequentialMs = getTickCount() - began;
+		began = getTickCount();
+		variables.asyncManager.allApply( items, ( i ) => { sleep( 300 ); return i; } );
+		prc.parallelMs = getTickCount() - began;
+		prc.title  = "Sequential and parallel";
+		prc.text   = "Eight 300 ms jobs: #prc.sequentialMs# ms one after another, #prc.parallelMs# ms in parallel.";
+		prc.lookAt = [ "Console > Executors: the executor used for the parallel run shows its threads busy.", "Console > Threads: worker threads appear while it runs." ];
+		event.setView( "perf/message" );
+	}
+
+	/** A large JSON payload. */
+	function bigJson( event, rc, prc ) {
+		var rows = [];
+		for ( var i = 1; i <= val( rc.rows ?: 20000 ); i++ ) {
+			rows.append( { id : i, name : "Row #i#", tags : [ "a", "b", "c" ], nested : { x : i, y : i * 2 } } );
+		}
+		return rows;
+	}
+
+	/** A named lock held for 2 seconds: run two of these at once and the second waits. */
+	function lockWait( event, rc, prc ) {
+		var waited = getTickCount();
+		bx:lock name="cbdemo-perf-lock" timeout="20" {
+			var got = getTickCount() - waited;
+			sleep( 2000 );
+		}
+		prc.title  = "Lock wait";
+		prc.text   = "Waited #got# ms for the lock, then held it for 2 seconds. Open it in two tabs at once.";
+		prc.lookAt = [ "Console > In flight: the second request is waiting in the lock.", "Console > Threads: a thread blocked on the lock." ];
+		event.setView( "perf/message" );
+	}
+
+	/** What a framework reinit costs: the link reloads ColdBox, WireBox, modules, interceptors and the fixtures. */
+	function reinitInfo( event, rc, prc ) {
+		prc.title  = "Framework reinit";
+		prc.text   = "Reinit rebuilds every handler, model, interceptor and module. Follow the link and watch the time: ?fwreinit=1";
+		prc.lookAt = [ "Reports: the reinit request is the slowest URL by far.", "Console > Logs: ColdBox and module startup lines." ];
+		event.setView( "perf/reinit" );
+	}
+
+}

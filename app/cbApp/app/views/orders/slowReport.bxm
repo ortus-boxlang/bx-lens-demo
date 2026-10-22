@@ -1,0 +1,5 @@
+<bx:output>
+<h1>Slow report</h1>
+<p>#prc.report.pairs# matching line pairs, weight #prc.report.weight#. A self join over the order lines: slow on purpose.
+<a class="btn" href="#event.buildLink( linkTo = 'orders.slowReport', queryString = 'heavy=1' )#">Run the heavy version</a></p>
+</bx:output>

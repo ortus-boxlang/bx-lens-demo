@@ -1,0 +1,4 @@
+<bx:output>
+<h1>No error happened</h1>
+<p>This view renders only when the failing step was skipped or the error was caught.</p>
+</bx:output>

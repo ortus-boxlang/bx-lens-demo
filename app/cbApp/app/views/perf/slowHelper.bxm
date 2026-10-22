@@ -1,0 +1,9 @@
+<bx:output>
+<h1>Slow helper</h1>
+<p>Every cell goes through <code>slowFormat()</code> from the application helper: 200 calls of 4 ms each.</p>
+<table>
+	<bx:loop from="1" to="20" index="r">
+		<tr><bx:loop from="1" to="10" index="c"><td>#slowFormat( r * c )#</td></bx:loop></tr>
+	</bx:loop>
+</table>
+</bx:output>

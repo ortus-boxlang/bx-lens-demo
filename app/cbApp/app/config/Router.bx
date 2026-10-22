@@ -1,0 +1,38 @@
+/**
+ * This is your application router.  From here you can controll all the incoming routes to your application.
+ *
+ * https://coldbox.ortusbooks.com/the-basics/routing
+ */
+class {
+
+	function configure(){
+		/**
+		 * --------------------------------------------------------------------------
+		 * App Routes
+		 * --------------------------------------------------------------------------
+		 * Here is where you can register the routes for your web application!
+		 * Go get Funky!
+		 */
+
+		// A nice healthcheck route example
+		route( "/healthcheck", function( event, rc, prc ){
+			return "Ok!";
+		} );
+
+		// A nice RESTFul Route example
+		route( "/api/echo", function( event, rc, prc ){
+			return { "error" : false, "data" : "Welcome to my awesome API!" };
+		} );
+
+		// The orders API: GET list, GET one (numeric id), POST create, and a route that throws
+		route( "/api/v1/orders/boom" ).to( "api.v1.Orders.boom" );
+		route( "/api/v1/orders/:id-numeric" ).withAction( { GET : "show" } ).toHandler( "api.v1.Orders" ).end();
+		route( "/api/v1/orders" ).withAction( { GET : "index", POST : "create" } ).toHandler( "api.v1.Orders" ).end();
+
+		// @app_routes@
+
+		// Conventions-Based Routing
+		route( ":handler/:action?" ).end();
+	}
+
+}

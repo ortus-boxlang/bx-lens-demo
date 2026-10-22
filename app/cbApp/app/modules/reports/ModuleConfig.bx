@@ -1,0 +1,27 @@
+/**
+ * Reports: a module with its own handlers, views, a service and a ColdBox scheduler (config/Scheduler.bx).
+ * Entry point /reports. It reuses the application's ReportService and OrderService.
+ */
+class {
+
+	this.title             = "reports";
+	this.author            = "BxLens demo";
+	this.description       = "Dashboards and the report schedulers";
+	this.version           = "1.0.0";
+	this.viewParentLookup  = true;
+	this.layoutParentLookup = true;
+	this.entryPoint        = "reports";
+	this.modelNamespace    = "reports";
+	this.cfmapping         = "reports";
+	this.autoMapModels     = true;
+	this.dependencies      = [];
+
+	function configure() {
+		variables.settings = { staleAfterDays : 90 };
+	}
+
+	function onLoad() {
+		log.info( "reports module loaded" );
+	}
+
+}

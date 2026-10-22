@@ -1,0 +1,47 @@
+/**
+ * Quick entities and qb queries: the lazy relationship N+1 that ORMs hide, and its eager loading fix.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	/** One query for the orders, then one more for every order's customer, because customer() loads lazily. */
+	function nPlusOne( event, rc, prc ) {
+		var rows = [];
+		for ( var o in getInstance( "Order" ).orderBy( "id", "desc" ).limit( val( rc.limit ?: 25 ) ).get() ) {
+			rows.append( { order : o.getId(), customer : o.getCustomer().getName(), total : o.getTotal() } );
+		}
+		prc.rows  = rows;
+		prc.title = "Quick: lazy relationship, one query per order";
+		prc.lookAt = [ "Bar > Queries: the orders query, then a customer query for every row. Quick hides the loop, the debugger shows it." ];
+		event.setView( "orders/rows" );
+	}
+
+	/** The same page with with( 'customer' ): two queries. */
+	function eager( event, rc, prc ) {
+		var rows = [];
+		for ( var o in getInstance( "Order" ).with( "customer" ).orderBy( "id", "desc" ).limit( val( rc.limit ?: 25 ) ).get() ) {
+			rows.append( { order : o.getId(), customer : o.getCustomer().getName(), total : o.getTotal() } );
+		}
+		prc.rows  = rows;
+		prc.title = "Quick: eager loading with with(), two queries";
+		prc.lookAt = [ "Bar > Queries: two statements however many rows. Compare with the lazy page." ];
+		event.setView( "orders/rows" );
+	}
+
+	/** A plain qb query builder statement. */
+	function qb( event, rc, prc ) {
+		var q = getInstance( "QueryBuilder@qb" );
+		var rows = q.from( "orders" ).select( [ "status" ] ).selectRaw( "COUNT(*) AS n" ).groupBy( "status" ).get();
+		prc.title  = "qb: orders by status";
+		prc.text   = rows.map( ( r ) => "#r.status#: #r.n#" ).toList( ", " );
+		prc.lookAt = [ "Bar > Queries: the SQL qb generated." ];
+		event.setView( "perf/message" );
+	}
+
+	/** qb against a table that does not exist. */
+	function qbFails( event, rc, prc ) {
+		getInstance( "QueryBuilder@qb" ).from( "no_such_table" ).get();
+		prc.title = "never";
+		event.setView( "perf/message" );
+	}
+
+}

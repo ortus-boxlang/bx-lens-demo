@@ -1,0 +1,119 @@
+/**
+ * Every scenario of the demo: where it is, what status it answers with, what it shows and where to look in BxLens.
+ * The home page renders it and the smoke test walks it (/main/scenarios).
+ */
+class singleton {
+
+	variables.base = "/cbApp/public/index.bxm";
+
+	array function groups() {
+		return [
+			group( "Everyday pages", "Healthy requests: lists, details, forms, an API and test data.", [
+				item( "Orders", "/orders", 200, "A healthy paged list with a partial per row.", "Bar: green strip, one joined query, template spans." ),
+				item( "Order detail", "/orders/show?id=10001", 200, "One order with its lines.", "Bar > Queries: two queries." ),
+				item( "Customers", "/customers", 200, "Customer list with an order count per row.", "Bar > Queries." ),
+				item( "Customer detail", "/customers/show?id=3", 200, "A customer and their orders.", "Bar > Timeline." ),
+				item( "Products", "/products", 200, "All products with stock levels.", "Bar." ),
+				item( "Low stock", "/products/lowStock", 200, "Products at or under 5 in stock.", "Bar." ),
+				item( "New order form", "/orders/create", 200, "A form. Posting it writes an order and announces onOrderCreated.", "Console > Requests: the POST, the audit module entry." ),
+				item( "Orders API", "/api/v1/orders", 200, "RESTful JSON, no bar.", "Console > Requests records it without a bar." ),
+				item( "Order API detail", "/api/v1/orders/10005", 200, "One order as JSON.", "Console > Requests." ),
+				item( "Mock customers", "/data/customers?n=3", 200, "Random customers from cbmockdata.", "Console > Requests: JSON endpoint." ),
+				item( "CacheBox", "/cache", 200, "Every cache with hits, misses and size.", "Console > Caches." )
+			] ),
+			group( "Queries", "The database is the story.", [
+				item( "N+1", "/orders/nPlusOne", 200, "One customer query per order row.", "Bar > Queries: a repeated statement. Console > Requests > Issues." ),
+				item( "The same, joined", "/orders/joined", 200, "The fix: one joined query.", "Compare the query count with the N+1 page." ),
+				item( "Slow report", "/orders/slowReport", 200, "A self join over the order lines, about half a second.", "Console > Queries: ranked by time." ),
+				item( "Heavy report", "/orders/slowReport?heavy=1", 200, "The same with a third table: about 3 seconds.", "Bar > Queries: critical slow query." ),
+				item( "Bad SQL", "/errors/sqlFails", 500, "A statement with an unknown column.", "Console > Queries (failures) and Errors." ),
+				item( "Quick: lazy N+1", "/entities/nPlusOne", 200, "A Quick entity relationship loaded lazily: one query per order.", "Bar > Queries: the loop the ORM hides." ),
+				item( "Quick: eager loading", "/entities/eager", 200, "The same page with with( customer ): two queries.", "Compare the query count." ),
+				item( "qb query builder", "/entities/qb", 200, "A grouped query from the query builder.", "Bar > Queries: the generated SQL." ),
+				item( "qb on a missing table", "/entities/qbFails", 500, "qb querying a table that does not exist.", "Console > Queries (failures) and Errors." )
+			] ),
+			group( "Slow ColdBox", "The slow things a ColdBox app does besides the database.", [
+				item( "Slow handler", "/perf/slowHandler", 200, "A handler that sleeps 1.5 seconds.", "Bar > Timeline: one handler span. Console > In flight." ),
+				item( "Slow query", "/perf/slowQuery", 200, "A handler waiting on a heavy query.", "Bar > Queries." ),
+				item( "Slow view (300 partials)", "/perf/slowView", 200, "A view that renders a partial 300 times.", "Bar > Timeline and Templates: hundreds of spans." ),
+				item( "Nested partials", "/perf/nestedPartials", 200, "A partial that renders itself 12 levels deep.", "Bar > Timeline: a staircase. Try ?depth=40." ),
+				item( "Slow layout", "/perf/slowLayout", 200, "A layout that waits 800 ms.", "Bar > Timeline: the time is after the view." ),
+				item( "Slow helper", "/perf/slowHelper", 200, "A helper called 200 times from a view.", "Bar > Timeline and BIFs." ),
+				item( "Slow model start", "/perf/slowModel", 200, "A singleton that takes 3 seconds to build. Slow once, until the next reinit.", "Console > Logs: SlowInit warning." ),
+				item( "Slow interceptor", "/perf/slowInterceptor?slowIntercept=1200", 200, "An interceptor that sleeps before the handler.", "Bar > Timeline: the gap before the handler." ),
+				item( "Slow HTTP call", "/perf/slowHttp", 200, "A call to a slow handler of this app.", "Bar > HTTP." ),
+				item( "Event cache", "/perf/eventCached", 200, "First hit slow, then served from CacheBox for a minute.", "Console > Caches." ),
+				item( "View cache", "/perf/viewCached", 200, "The 800 ms render is cached for a minute.", "Bar > Timeline: second hit skips the view." ),
+				item( "Cache miss storm", "/perf/cacheStorm", 200, "Reads of random keys on the default cache.", "Console > Caches: low hit rate." ),
+				item( "runEvent chain", "/perf/runEventChain", 200, "Five nested runEvent calls.", "Bar > Timeline: nested handler spans." ),
+				item( "Sequential vs parallel", "/perf/parallel", 200, "Eight 300 ms jobs one by one and on an executor.", "Console > Executors and Threads." ),
+				item( "Big JSON", "/perf/bigJson", 200, "20,000 rows serialized to JSON.", "Console > Requests: size and time." ),
+				item( "Lock wait", "/perf/lockWait", 200, "Holds a named lock for 2 seconds. Open it in two tabs.", "Console > In flight and Threads." ),
+				item( "Framework reinit", "/perf/reinitInfo", 200, "What ?fwreinit=1 costs.", "Console > Reports: the slowest URL." )
+			] ),
+			group( "Errors", "Every way a ColdBox request fails. Add ?caught=1 to any of them to catch the error in the handler instead.", [
+				item( "Handler throws", "/errors/handlerFails", 500, "An exception in the action.", "Console > Errors." ),
+				item( "View throws", "/errors/viewFails", 500, "An exception while a view renders, after part of the page was written.", "Console > Errors." ),
+				item( "Layout throws", "/errors/layoutFails", 500, "An exception while a layout renders.", "Console > Errors." ),
+				item( "Model throws", "/errors/modelFails", 500, "A service rejects an unknown product.", "Console > Errors: the model frame." ),
+				item( "Helper fails", "/errors/helperFails", 500, "A type error inside the application helper.", "Console > Errors." ),
+				item( "WireBox: missing dependency", "/errors/wireboxFails", 500, "A model asks for a mapping that does not exist.", "Console > Errors: Injector error." ),
+				item( "WireBox: circular dependency", "/errors/circularFails", 500, "Two models need each other in their constructors.", "Console > Errors." ),
+				item( "WireBox: init throws", "/errors/brokenInitFails", 500, "A model whose init throws.", "Console > Errors." ),
+				item( "runEvent failure", "/errors/nestedFailure", 500, "A failure three runEvent calls deep.", "Console > Errors: a deep stack." ),
+				item( "Listener throws", "/errors/listenerFails", 500, "A listener of the custom onOrderCreated event throws.", "Console > Errors." ),
+				item( "CacheBox error", "/errors/cacheFails", 500, "A cache that does not exist.", "Console > Errors." ),
+				item( "Missing view", "/errors/missingView", 500, "A view that does not exist.", "Console > Errors." ),
+				item( "Missing layout", "/errors/missingLayout", 500, "A layout that does not exist.", "Console > Errors." ),
+				item( "Validation (422)", "/errors/validation?qty=-1&email=bad", 422, "cbvalidation fails with a 422 page.", "Console > Requests: status 422." ),
+				item( "Missing action (404)", "/errors/noSuchAction", 404, "onMissingAction answers 404.", "Console > Requests: status 404." ),
+				item( "Unknown handler (404)", "/nosuchhandler/x", 404, "The invalid event handler answers 404.", "Console > Requests." ),
+				item( "Order not found (404)", "/orders/show?id=99999", 404, "A record that does not exist.", "Console > Requests." ),
+				item( "API 404", "/api/v1/orders/999999", 404, "JSON 404.", "Console > Requests." ),
+				item( "API 500", "/errors/api500", 500, "A JSON error response.", "Console > Errors." ),
+				item( "API handler throws", "/api/v1/orders/boom", 500, "RestHandler onError answers JSON.", "Console > Errors." ),
+				item( "Caught in the handler", "/errors/handlerFails?caught=1", 200, "The same error caught and sent to BxLens.", "Bar > Exceptions." ),
+				item( "Caught WireBox error", "/errors/wireboxFails?caught=1", 200, "A caught Injector error.", "Bar > Exceptions." )
+			] ),
+			group( "Cache and outgoing HTTP", "CacheBox and calls out of the app.", [
+				item( "Cache churn", "/cache/churn", 200, "Writes 150 keys, reads random ones.", "Console > Caches." ),
+				item( "HTTP: 200 and 404", "/outbound/http", 200, "Two calls, one succeeds and one returns 404.", "Bar > HTTP." ),
+				item( "HTTP loop", "/outbound/loop", 200, "15 calls to the same endpoint.", "Bar > HTTP: a loop of calls." ),
+				item( "HTTP cannot connect", "/outbound/refused", 200, "A call to a port nothing listens on.", "Bar > HTTP and Exceptions." )
+			] ),
+			group( "Custom modules", "Four modules of this app. Each has its own scheduler.", [
+				item( "Reports", "/reports/main/index", 200, "Module handler and views: a dashboard.", "Event reports:main.index." ),
+				item( "Report build (slow)", "/reports/main/build", 200, "Module handler that builds the full report, about 3 seconds.", "Bar > Timeline." ),
+				item( "Revenue CSV", "/reports/main/export", 200, "A CSV download.", "Console > Requests." ),
+				item( "Inventory", "/inventory/stock/index", 200, "Stock levels from the inventory module.", "Event inventory:stock.index." ),
+				item( "Reserve too much (409)", "/inventory/stock/reserve?productId=1&qty=999", 409, "A module service rejects the reservation.", "Console > Requests: 409." ),
+				item( "Stock sync (slow)", "/inventory/stock/sync", 200, "A module service that takes 4 seconds.", "Bar > Timeline." ),
+				item( "Audit log", "/audit/log/index", 200, "The audit interceptor's entries.", "Every request has an interceptor span." ),
+				item( "Faults panel", "/faults/panel/index", 200, "Turn on injected latency or errors for the whole app, then reset.", "Console > Reports: p95 and the error rate move." )
+			] ),
+			group( "Schedulers", "ColdBox schedulers: the app and each module register their own.", [
+				item( "All schedulers", "/schedulers", 200, "Every scheduler with its tasks, runs and failures. Run a task now from here.", "Console > Tasks and Executors." )
+			] )
+		];
+	}
+
+	/** One flat array, for the smoke test and the tests. */
+	array function flat() {
+		var out = [];
+		for ( var g in groups() ) {
+			for ( var i in g.items ) {
+				out.append( { group : g.title, title : i.title, url : i.url, expect : i.expect } );
+			}
+		}
+		return out;
+	}
+
+	private struct function group( required string title, required string intro, required array items ) {
+		return { title : arguments.title, intro : arguments.intro, items : arguments.items };
+	}
+
+	private struct function item( required string title, required string path, required numeric expect, required string what, required string look ) {
+		return { title : arguments.title, url : variables.base & arguments.path, expect : arguments.expect, what : arguments.what, look : arguments.look };
+	}
+
+}

@@ -1,0 +1,14 @@
+/**
+ * Adds latency before the handler runs when ?slowIntercept=ms is on the request, or when the faults module asks for it
+ * through the prc.addLatencyMs flag. Shows what a slow preProcess interceptor costs every request.
+ */
+class extends="coldbox.system.Interceptor" {
+
+	function preProcess( event, interceptData, rc, prc ) {
+		var ms = val( rc.slowIntercept ?: 0 );
+		if ( ms > 0 ) {
+			sleep( min( ms, 5000 ) );
+		}
+	}
+
+}

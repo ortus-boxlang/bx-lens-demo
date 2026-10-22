@@ -1,0 +1,10 @@
+<bx:output>
+<h1>New order</h1>
+<form method="post" action="#event.buildLink( 'orders.create' )#">
+	<p><label>Customer <select name="customerId"><bx:loop query="prc.customers"><option value="#prc.customers.id#">#encodeForHTML( prc.customers.name )#</option></bx:loop></select></label></p>
+	<p><label>Product <select name="productId"><bx:loop query="prc.products"><option value="#prc.products.id#">#encodeForHTML( prc.products.name )# (#prc.products.stock# in stock)</option></bx:loop></select></label></p>
+	<p><label>Quantity <input name="qty" type="number" value="1" min="1" max="9"></label></p>
+	<p><button class="btn go" type="submit">Create</button></p>
+</form>
+<p><small>Creating an order announces the custom <code>onOrderCreated</code> event. Add <code>?failListener=1</code> to the form address to make its listener throw.</small></p>
+</bx:output>

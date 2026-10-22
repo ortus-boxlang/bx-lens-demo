@@ -1,0 +1,43 @@
+/**
+ * A bounded in memory audit log: the last maxEntries entries.
+ */
+class singleton {
+
+	property name="settings" inject="coldbox:moduleSettings:audit";
+
+	variables.entries = [];
+
+	function add( required string kind, required string detail, numeric ms = 0 ) {
+		lock name="audit-log" type="exclusive" timeout="5" {
+			variables.entries.prepend( { at : now(), kind : arguments.kind, detail : arguments.detail, ms : arguments.ms } );
+			while ( variables.entries.len() > variables.settings.maxEntries ) {
+				variables.entries.deleteAt( variables.entries.len() );
+			}
+		}
+	}
+
+	array function list( numeric max = 100 ) {
+		return variables.entries.slice( 1, min( arguments.max, variables.entries.len() ) );
+	}
+
+	numeric function size() {
+		return variables.entries.len();
+	}
+
+	struct function rollup() {
+		var out = {};
+		for ( var e in variables.entries ) {
+			out[ e.kind ] = ( out[ e.kind ] ?: 0 ) + 1;
+		}
+		return out;
+	}
+
+	numeric function purge( numeric keep = 100 ) {
+		lock name="audit-log" type="exclusive" timeout="5" {
+			var removed = max( 0, variables.entries.len() - arguments.keep );
+			variables.entries = variables.entries.slice( 1, min( arguments.keep, variables.entries.len() ) );
+		}
+		return removed;
+	}
+
+}

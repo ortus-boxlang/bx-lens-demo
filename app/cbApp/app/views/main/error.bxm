@@ -1,0 +1,9 @@
+<bx:output>
+<h1>Something went wrong</h1>
+<div class="err-box">
+	<p><strong>#encodeForHTML( prc.errorType )#</strong></p>
+	<p>#encodeForHTML( prc.errorMessage )#</p>
+	<p><small>#encodeForHTML( prc.errorDetail )#</small></p>
+</div>
+<p><small>ColdBox caught this error in <code>main.onException</code>, set a 500, and told BxLens about it with <code>lensException()</code>.</small></p>
+</bx:output>

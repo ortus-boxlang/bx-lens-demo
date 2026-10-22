@@ -1,0 +1,22 @@
+/**
+ * A singleton that takes 3 seconds to build, so the first request that needs it pays for it and every request after is fast.
+ * The slow start is in onDIComplete, which WireBox calls once the object and its dependencies exist.
+ */
+class singleton {
+
+	property name="log" inject="logbox:logger:{this}";
+
+	variables.readyAt = "";
+
+	function onDIComplete() {
+		var began = getTickCount();
+		sleep( 3000 );
+		variables.readyAt = now();
+		variables.log.warn( "SlowInit took #getTickCount() - began# ms to build" );
+	}
+
+	function readyAt() {
+		return variables.readyAt;
+	}
+
+}

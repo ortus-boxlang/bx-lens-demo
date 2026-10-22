@@ -1,0 +1,11 @@
+<bx:output>
+<h1>Slow view: 300 partials</h1>
+<p>#prc.orders.recordCount# rows, each one rendered with its own <code>renderView</code> call.</p>
+<table>
+	<tr><th>Order</th><th>Customer</th><th>Status</th><th style="text-align:right">Total</th></tr>
+	<bx:loop query="prc.orders">
+		<bx:script>row = { id : prc.orders.id, customer : prc.orders.customer, status : prc.orders.status, total : prc.orders.total };</bx:script>
+		#renderView( view = 'partials/_orderRow', args = { row : row } )#
+	</bx:loop>
+</table>
+</bx:output>

@@ -1,0 +1,35 @@
+/**
+ * Report pages: a dashboard, a slow build and a CSV export.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="reportService" inject="ReportService";
+
+	function index( event, rc, prc ) {
+		prc.summary   = variables.reportService.summary();
+		prc.countries = variables.reportService.revenueByCountry();
+		prc.lookAt    = [ "Bar > Queries: the aggregate queries of the dashboard.", "This is a module handler: the event is reports:main.index." ];
+		event.setView( "main/index" );
+	}
+
+	/** Builds the report the slow way, about 3 seconds. */
+	function build( event, rc, prc ) {
+		var began = getTickCount();
+		prc.built = variables.reportService.build( 2500 );
+		prc.ms    = getTickCount() - began;
+		prc.lookAt = [ "Bar > Timeline: the module handler is slow and runs the heavy self join." ];
+		event.setView( "main/build" );
+	}
+
+	/** CSV download of revenue by country. */
+	function export( event, rc, prc ) {
+		var q   = variables.reportService.revenueByCountry();
+		var csv = "country,orders,revenue" & char( 10 );
+		for ( var r in q ) {
+			csv &= "#r.country#,#r.orders#,#r.revenue#" & char( 10 );
+		}
+		event.setHTTPHeader( name = "Content-Disposition", value = "attachment; filename=revenue.csv" );
+		return event.renderData( type = "text", data = csv, contentType = "text/csv" );
+	}
+
+}

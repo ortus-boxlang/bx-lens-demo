@@ -1,0 +1,45 @@
+/**
+ * Outgoing HTTP from a handler: a good call and a 404, a loop of calls, and a call that cannot connect.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	private string function base() {
+		return "http://#cgi.http_host#/cbApp/public/index.bxm";
+	}
+
+	function http( event, rc, prc ) {
+		bx:http url="#base()#/main/health" result="okResult" timeout="10";
+		bx:http url="#base()#/orders/show?id=99999" result="missingResult" timeout="10";
+		prc.title  = "Outgoing HTTP";
+		prc.text   = "First call #okResult.statusCode#, second call #missingResult.statusCode#.";
+		prc.lookAt = [ "Bar > HTTP: one 200 and one 404.", "Console > HTTP: both endpoints with status and latency." ];
+		event.setView( "perf/message" );
+	}
+
+	function loop( event, rc, prc ) {
+		var ok = 0;
+		for ( var i = 1; i <= 15; i++ ) {
+			bx:http url="#base()#/main/health?n=#i#" result="loopResult" timeout="10";
+			ok++;
+		}
+		prc.title  = "HTTP loop";
+		prc.text   = "#ok# calls to the same endpoint.";
+		prc.lookAt = [ "Bar > HTTP: 15 calls to one endpoint, flagged as a loop of calls." ];
+		event.setView( "perf/message" );
+	}
+
+	function refused( event, rc, prc ) {
+		var msg = "";
+		try {
+			bx:http url="http://127.0.0.1:1/nothing" result="refusedResult" timeout="2" throwOnError="true";
+		} catch ( any e ) {
+			msg = e.message;
+			reportToLens( e );
+		}
+		prc.title  = "HTTP that cannot connect";
+		prc.text   = "The call failed: " & msg;
+		prc.lookAt = [ "Bar > HTTP: a failed call.", "Bar > Exceptions: the connection error." ];
+		event.setView( "perf/message" );
+	}
+
+}

@@ -1,0 +1,15 @@
+/**
+ * Quick entity for the customers table. Relationships are lazy: orders() loads when you ask for it.
+ */
+class extends="quick.models.BaseEntity" accessors="true" table="customers" {
+
+	property name="id";
+	property name="name";
+	property name="email";
+	property name="country";
+
+	function orders() {
+		return hasMany( "Order", "customer_id" );
+	}
+
+}

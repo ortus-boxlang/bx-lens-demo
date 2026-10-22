@@ -1,0 +1,53 @@
+/**
+ * Every scheduler registers with ColdBox, with the tasks it is meant to have.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "ColdBox schedulers", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			var expected = {
+				"appScheduler@coldbox"   : [ "refresh-stats", "sync-inventory", "nightly-report", "overlap", "overlap-guarded", "weekday-digest", "warm-cache" ],
+				"cbScheduler@reports"    : [ "daily-digest", "stale-order-cleanup" ],
+				"cbScheduler@inventory"  : [ "restock-check", "stock-sync" ],
+				"cbScheduler@audit"      : [ "audit-rollup", "audit-purge" ],
+				"cbScheduler@faults"     : [ "chaos-monkey", "fault-reset" ]
+			};
+
+			for ( var name in expected ) {
+				var tasks = expected[ name ];
+				it( "registers #name# with #tasks.len()# tasks", () => {
+					var all = getInstance( "coldbox:schedulerService" ).getSchedulers();
+					expect( all ).toHaveKey( name );
+					var registered = all[ name ].getRegisteredTasks();
+					for ( var t in tasks ) {
+						expect( registered ).toInclude( t );
+					}
+				} );
+			}
+
+			it( "marks warm-cache as disabled", () => {
+				var s = getInstance( "coldbox:schedulerService" ).getSchedulers()[ "appScheduler@coldbox" ];
+				expect( s.getTaskRecord( "warm-cache" ).task.isDisabled() ).toBeTrue();
+			} );
+
+			it( "runs a task now from the schedulers page", () => {
+				var s = getInstance( "coldbox:schedulerService" ).getSchedulers()[ "appScheduler@coldbox" ];
+				var before = s.getTaskStats()[ "refresh-stats" ].totalRuns ?: 0;
+				this.get( "schedulers.runNow", { scheduler : "appScheduler@coldbox", task : "refresh-stats" } );
+				expect( s.getTaskStats()[ "refresh-stats" ].totalRuns ).toBeGT( before );
+			} );
+
+			it( "lists the schedulers on the schedulers page", () => {
+				var event = this.get( "schedulers.index" );
+				expect( event.getPrivateValue( "schedulers" ).len() ).toBeGTE( 5 );
+			} );
+
+		} );
+	}
+
+}

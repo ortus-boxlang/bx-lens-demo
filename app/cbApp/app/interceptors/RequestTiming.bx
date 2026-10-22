@@ -1,0 +1,20 @@
+/**
+ * Times every ColdBox event and reports it in a response header and the log. Cheap on purpose: it is the baseline other interceptors are compared with.
+ */
+class extends="coldbox.system.Interceptor" {
+
+	property name="log" inject="logbox:logger:{this}";
+
+	function preProcess( event, interceptData, rc, prc ) {
+		prc.cbStarted = getTickCount();
+	}
+
+	function postProcess( event, interceptData, rc, prc ) {
+		var ms = getTickCount() - ( prc.cbStarted ?: getTickCount() );
+		event.setHTTPHeader( name = "X-CB-Event-Ms", value = ms );
+		if ( ms > 500 ) {
+			variables.log.warn( "Slow ColdBox event #event.getCurrentEvent()# took #ms# ms" );
+		}
+	}
+
+}

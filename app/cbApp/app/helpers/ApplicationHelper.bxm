@@ -1,0 +1,22 @@
+<!--- All methods in this helper are available in every handler, view and layout --->
+<bx:script>
+	/** Send an exception to the BxLens bar and console when BxLens is installed. ColdBox catches errors, so BoxLang never sees them as uncaught. */
+	function reportToLens( required any exception ) {
+		try {
+			lensException( arguments.exception );
+		} catch ( any ignore ) {
+			// BxLens is not installed
+		}
+	}
+
+	/** Money for the views. */
+	function money( required numeric amount ) {
+		return numberFormat( arguments.amount, "9,999.99" );
+	}
+
+	/** A deliberately slow formatter, 4 ms each, used by the slow helper page. */
+	function slowFormat( required any value ) {
+		sleep( 4 );
+		return encodeForHTML( toString( arguments.value ) );
+	}
+</bx:script>

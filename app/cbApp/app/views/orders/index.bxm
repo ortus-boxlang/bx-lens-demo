@@ -1,0 +1,19 @@
+<bx:output>
+<h1>Orders</h1>
+<p>#prc.total# orders. Filter:
+	<a href="#event.buildLink( 'orders.index' )#">all</a>
+	<bx:loop array="#[ 'open', 'paid', 'shipped', 'cancelled' ]#" item="s"><a href="#event.buildLink( linkTo = 'orders.index', queryString = 'status=' & s )#">#s#</a> </bx:loop>
+</p>
+<table>
+	<tr><th>Order</th><th>Customer</th><th>Status</th><th style="text-align:right">Total</th></tr>
+	<bx:loop query="prc.orders">
+		<bx:script>row = { id : prc.orders.id, customer : prc.orders.customer, status : prc.orders.status, total : prc.orders.total };</bx:script>
+		#renderView( view = "partials/_orderRow", args = { row : row } )#
+	</bx:loop>
+</table>
+<p>
+	<bx:if val( rc.page ) gt 1><a class="btn" href="#event.buildLink( linkTo = 'orders.index', queryString = 'page=' & ( val( rc.page ) - 1 ) & '&status=' & rc.status )#">Previous</a></bx:if>
+	<bx:if val( rc.page ) * prc.pageSize lt prc.total><a class="btn" href="#event.buildLink( linkTo = 'orders.index', queryString = 'page=' & ( val( rc.page ) + 1 ) & '&status=' & rc.status )#">Next</a></bx:if>
+	<a class="btn go" href="#event.buildLink( 'orders.create' )#">New order</a>
+</p>
+</bx:output>

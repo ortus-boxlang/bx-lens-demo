@@ -1,0 +1,51 @@
+/**
+ * The services against the fixture data: the same rows on every start.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Fixtures and services", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			it( "loads the fixture counts", () => {
+				var c = getInstance( "FixtureLoader" ).counts();
+				expect( c.customers ).toBe( 40 );
+				expect( c.products ).toBe( 30 );
+				expect( c.orders ).toBeGTE( 300 );
+				expect( c.order_lines ).toBeGTE( 921 );
+			} );
+
+			it( "creates an order, announces onOrderCreated and records it", () => {
+				var before = getInstance( "OrderService" ).count();
+				var id     = getInstance( "OrderService" ).create( 1, [ { productId : 2, qty : 2 } ] );
+				expect( getInstance( "OrderService" ).count() ).toBe( before + 1 );
+				expect( getInstance( "OrderService" ).lines( id ).recordCount ).toBe( 1 );
+			} );
+
+			it( "rejects an order for an unknown product", () => {
+				expect( () => getInstance( "OrderService" ).create( 1, [ { productId : 99999, qty : 1 } ] ) ).toThrow( type = "OrderService.UnknownProduct" );
+			} );
+
+			it( "finds low stock products", () => {
+				expect( getInstance( "ProductService" ).lowStock( 5 ).recordCount ).toBeGT( 0 );
+			} );
+
+			it( "builds the report", () => {
+				var r = getInstance( "ReportService" ).build();
+				expect( r.summary.orders ).toBeGT( 0 );
+			} );
+
+			it( "has a catalog where every scenario has a url and an expected status", () => {
+				for ( var s in getInstance( "Catalog" ).flat() ) {
+					expect( s.url ).toInclude( "/cbApp/public/index.bxm" );
+					expect( s.expect ).toBeNumeric();
+				}
+			} );
+
+		} );
+	}
+
+}

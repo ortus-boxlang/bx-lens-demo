@@ -163,6 +163,39 @@ BxLens listens to the `onMail` events of `bx-mail`. **No `bx-mail` release annou
 
 Set `WITH_AI=1` to enable the three Ollama-backed agents as well. The scheduler runs an agent every fourth heartbeat, rotating through metrics, order and cross-server operations analysis. These model calls require Ollama and the configured model, so may take several seconds; by default only the MCP workload runs. The workload is intentionally demo-only and does not place real orders or contact external services.
 
+### ColdBox app
+
+`app/cbApp` is a real ColdBox application, generated with `coldbox create app skeleton=boxlang` (the BoxLang template) and extended. Open it at
+<http://localhost:8085/cbApp/> (it forwards to `/cbApp/public/index.bxm`). It has its own datasource (`cbdemo`, in memory Derby), seeded at start from
+JSON fixtures in `resources/data` (40 customers, 30 products, 300 orders, 921 order lines).
+
+Its home page lists every scenario with what it does and where to look in BxLens. They cover what you debug in a ColdBox app:
+
+| Group | Scenarios |
+|---|---|
+| Queries | N+1 with plain SQL, the joined fix, a slow and a heavy report, bad SQL, a Quick lazy relationship N+1 and its `with()` fix, a `qb` query and a `qb` failure |
+| Slow ColdBox | A slow handler, query, view (300 partials), nested partials, layout, helper, model start (3 s in `onDIComplete`), interceptor and HTTP call. Event and view caching, a cache miss storm, a `runEvent` chain, sequential against parallel work, a big JSON payload, a lock wait and a framework reinit |
+| Errors | Handler, view, layout, model, helper, SQL, WireBox (missing dependency, circular, failing init), nested `runEvent`, a failing interceptor listener, CacheBox, a missing view and layout, validation (422), 404s and JSON API errors. Add `?caught=1` to any of them to catch the error in the handler and send it to the bar |
+| Everyday pages and an API | Lists, details, a form that writes, a RESTful `api/v1/orders` (200, 404, 422, 500), random data from `cbmockdata` |
+| Custom modules | `reports`, `inventory`, `audit` and `faults` (see below) |
+
+**Modules.** `cbvalidation`, `cbmessagebox`, `route-visualizer`, `qb`, `quick` and `cbmockdata`, plus ColdBox itself and TestBox. They are **not** in git: `start.sh` checks that the `bx-cli` module (BoxLang CommandBox) is installed with `install-bx-module --list`, offers to install it if not, then runs `box install` in `app/cbApp`, which downloads everything into `app/cbApp/lib`. The versions are pinned in `app/cbApp/box.json`; change one and run `box install` again. The ColdBox debugger (`cbdebugger`) is deliberately not installed, so BxLens is the only debugger in the picture.
+The four custom modules in `app/modules` each have handlers, views, models and their own scheduler:
+
+| Module | What it does |
+|---|---|
+| `reports` | A dashboard, a slow report build and a CSV export |
+| `inventory` | Stock levels, a reservation that fails with a 409, a slow sync, a slow singleton |
+| `audit` | An interceptor that records every request and every created order |
+| `faults` | **A fault injector for live demos.** Switch on injected latency, errors or both at a rate you choose, watch the p95 and error rate move in BxLens, then reset. The panel and the health check are never affected |
+
+**Schedulers.** The app and each custom module register a ColdBox scheduler (`appScheduler@coldbox`, `cbScheduler@reports`, `@inventory`, `@audit`, `@faults`), 15 tasks in all: healthy, failing, slow, overlapping, overlap guarded, conditional (`when`), calendar (`onWeekdays`) and paused. The `schedulers` page lists them with runs and failures and can run a task now.
+ColdBox manages these schedulers itself and does **not** register them with the BoxLang scheduler service (checked: the service lists only the mail and BoxLang+ schedulers). So BxLens's **Tasks** page, which reads that service, does not list them. Their effect still shows up in **Threads** (worker threads, the 25 second tasks) and in the logs. The BoxLang scheduler in the main app is the one the Tasks page shows.
+
+**Tests.** `app/cbApp/tests` has 47 TestBox specs (integration, API, errors, modules, schedulers, services). Run them at <http://localhost:8085/cbApp/tests/runner.bxm> or with `./test/smoke.sh`, which also walks every scenario of the catalog and checks its status.
+
+Good to know: a framework reinit (`?fwreinit=1`) takes 12 to 22 seconds here, because shutting down the schedulers waits for the long running tasks. That is a scenario in itself. The data survives a reinit, and **Reset the data** on the home page reloads it. After changing a model, reinit.
+
 ### CFML
 
 `/legacy/` has `.cfm` templates and a `.cfc` component (`cfquery`, `cfqueryparam`, `cfhttp`, `cflock`, `cfthread`, `cftry`, `cfthrow`) with the same N+1 and error stories. BxLens sees them like any other code. They need the `bx-compat-cfml` module, which the start script installs locally.
@@ -212,4 +245,5 @@ Be aware of what has and has not been run:
 - **Not run yet**: BxLens itself. The pages that call `lensMessage()`, `lensException()` and friends were ported from the BxLens harness and not exercised here. What the bar and console show for each scenario, and Lensy's answers, are the intent of the page and need a pass with the real module.
 - **Not run**: Docker, CommandBox and `./start.sh activate` (BoxLang+). The commands follow the documentation.
 - **ORM and mail**: the pages run against the real `bx-orm` 1.7.2 snapshot and `bx-mail` 1.4.15 and the SMTP sink (entities save, a flush fails, every mail scenario sends, the failover works). What BxLens shows for them was not checked, and the Mail page stays empty until a `bx-mail` release announces `onMail` events.
+- **ColdBox app** (`app/cbApp`): run on BoxLang 1.18 with MiniServer and the real `bx-compat-cfml`, `qb`, `quick` and ColdBox 8.3.0. All 72 scenarios of its catalog answer the status they say and all 47 TestBox specs pass. What BxLens shows for them was not checked, because the BxLens version used here asks the server to register before the console and bar work. The ColdBox schedulers are not listed on the BxLens Tasks page (see above).
 - Windows: use Docker or WSL. There is no PowerShell script.

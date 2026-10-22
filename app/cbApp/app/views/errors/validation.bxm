@@ -1,0 +1,9 @@
+<bx:output>
+<h1>Validation</h1>
+<bx:if prc.validation.hasErrors()>
+	<div class="err-box"><p><strong>#arrayLen( prc.validation.getAllErrors() )# problems (422)</strong></p>
+	<ul><bx:loop array="#prc.validation.getAllErrors()#" item="m"><li>#encodeForHTML( m )#</li></bx:loop></ul></div>
+<bx:else>
+	<p><span class="pill ok">valid</span> Add <code>?qty=-1&amp;email=bad</code> to fail it.</p>
+</bx:if>
+</bx:output>

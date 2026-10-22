@@ -1,0 +1,29 @@
+/**
+ * Stock pages and a small JSON API: levels, a reservation that can fail with 409, and a slow sync.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="stockService" inject="StockService@inventory";
+
+	function index( event, rc, prc ) {
+		prc.products = variables.stockService.levels();
+		prc.lookAt   = [ "A module handler and service: the event is inventory:stock.index.", "Console > Errors: the 409 reservations are caught here, so look at Requests for the status." ];
+		event.setView( "stock/index" );
+	}
+
+	/** /inventory/stock/reserve?productId=1&qty=999: JSON, 409 when there is not enough stock */
+	function reserve( event, rc, prc ) {
+		try {
+			var left = variables.stockService.reserve( val( rc.productId ?: 1 ), val( rc.qty ?: 1 ) );
+			return { ok : true, left : left };
+		} catch ( InsufficientStock e ) {
+			return event.renderData( type = "json", statusCode = 409, data = { error : true, message : e.message } );
+		}
+	}
+
+	/** A slow sync from a request: 4 seconds */
+	function sync( event, rc, prc ) {
+		return variables.stockService.sync();
+	}
+
+}

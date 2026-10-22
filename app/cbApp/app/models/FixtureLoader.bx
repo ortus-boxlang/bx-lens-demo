@@ -1,0 +1,96 @@
+/**
+ * Creates the cbdemo schema in the in memory Derby database and loads the JSON fixtures from resources/data.
+ * The same data on every start, so the demo and the tests see the same rows.
+ */
+class singleton {
+
+	property name="log" inject="logbox:logger:{this}";
+
+	variables.loaded = false;
+	variables.dir    = getDirectoryFromPath( getCurrentTemplatePath() ) & "../../resources/data/";
+
+	/** Load once. force=true drops and loads again, which the tests use for a clean slate. */
+	struct function load( boolean force = false ) {
+		if ( variables.loaded && !arguments.force ) {
+			return counts();
+		}
+		lock name="cbdemo-fixtures" type="exclusive" timeout="120" {
+			// A framework reinit builds a new loader but the in memory database survives: keep the rows (and the running schedulers happy)
+			if ( !arguments.force && !variables.loaded && alreadySeeded() ) {
+				variables.loaded = true;
+			}
+			if ( !variables.loaded || arguments.force ) {
+				var began = getTickCount();
+				createSchema();
+				seed();
+				variables.loaded = true;
+				variables.log.info( "Fixtures loaded in #getTickCount() - began# ms" );
+			}
+		}
+		return counts();
+	}
+
+	private boolean function alreadySeeded() {
+		try {
+			return queryExecute( "SELECT COUNT(*) AS n FROM customers" ).n > 0;
+		} catch ( any e ) {
+			return false;
+		}
+	}
+
+	struct function counts() {
+		var out = {};
+		for ( var t in [ "customers", "products", "orders", "order_lines" ] ) {
+			out[ t ] = queryExecute( "SELECT COUNT(*) AS n FROM #t#" ).n;
+		}
+		return out;
+	}
+
+	private void function createSchema() {
+		for ( var t in [ "order_lines", "orders", "products", "customers" ] ) {
+			try {
+				queryExecute( "DROP TABLE #t#" );
+			} catch ( any e ) {
+				// first start: nothing to drop
+			}
+		}
+		queryExecute( "CREATE TABLE customers ( id INT PRIMARY KEY, name VARCHAR(80), email VARCHAR(120), country VARCHAR(2), created VARCHAR(10) )" );
+		queryExecute( "CREATE TABLE products ( id INT PRIMARY KEY, sku VARCHAR(20), name VARCHAR(80), price DECIMAL(10,2), stock INT )" );
+		queryExecute( "CREATE TABLE orders ( id INT PRIMARY KEY, customer_id INT, status VARCHAR(20), total DECIMAL(10,2), created VARCHAR(10) )" );
+		queryExecute( "CREATE TABLE order_lines ( id INT PRIMARY KEY, order_id INT, product_id INT, qty INT, price DECIMAL(10,2) )" );
+	}
+
+	private void function seed() {
+		transaction {
+			for ( var c in read( "customers" ) ) {
+				queryExecute(
+					"INSERT INTO customers VALUES ( :id, :name, :email, :country, :created )",
+					{ id : c.id, name : c.name, email : c.email, country : c.country, created : c.created }
+				);
+			}
+			for ( var p in read( "products" ) ) {
+				queryExecute(
+					"INSERT INTO products VALUES ( :id, :sku, :name, :price, :stock )",
+					{ id : p.id, sku : p.sku, name : p.name, price : p.price, stock : p.stock }
+				);
+			}
+			for ( var o in read( "orders" ) ) {
+				queryExecute(
+					"INSERT INTO orders VALUES ( :id, :cid, :status, :total, :created )",
+					{ id : o.id, cid : o.customerId, status : o.status, total : o.total, created : o.created }
+				);
+			}
+			for ( var l in read( "orderlines" ) ) {
+				queryExecute(
+					"INSERT INTO order_lines VALUES ( :id, :oid, :pid, :qty, :price )",
+					{ id : l.id, oid : l.orderId, pid : l.productId, qty : l.qty, price : l.price }
+				);
+			}
+		}
+	}
+
+	private array function read( required string name ) {
+		return jsonDeserialize( fileRead( variables.dir & arguments.name & ".json" ) );
+	}
+
+}

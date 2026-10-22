@@ -1,0 +1,43 @@
+/**
+ * The RESTful orders API.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "Orders API", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+			} );
+
+			it( "lists orders as JSON", () => {
+				var event = this.get( "api.v1.Orders.index" );
+				var data  = event.getHandlerResults();
+				expect( data.data ).toBeArray();
+				expect( data.total ).toBeGTE( 300 );
+			} );
+
+			it( "returns one order", () => {
+				var event = this.get( "api.v1.Orders.show", { id : 10005 } );
+				expect( event.getHandlerResults().id ).toBe( 10005 );
+			} );
+
+			it( "answers 404 for an unknown order", () => {
+				var event = this.get( "api.v1.Orders.show", { id : 999999 } );
+				expect( event.getStatusCode() ).toBe( 404 );
+			} );
+
+			it( "answers 422 when the payload does not validate", () => {
+				var event = this.post( "api.v1.Orders.create", { customerId : 1, qty : 0 } );
+				expect( event.getStatusCode() ).toBe( 422 );
+			} );
+
+			it( "answers 500 as JSON when the handler throws", () => {
+				var event = this.get( "api.v1.Orders.boom" );
+				expect( event.getStatusCode() ).toBe( 500 );
+			} );
+
+		} );
+	}
+
+}

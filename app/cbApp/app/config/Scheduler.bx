@@ -1,0 +1,74 @@
+/**
+ * The application scheduler: one task for each state a debugger can show. ColdBox starts it with the application and manages it through its
+ * own scheduler service. Modules add their own schedulers (reports, inventory, audit, faults).
+ *
+ * https://coldbox.ortusbooks.com/digging-deeper/scheduled-tasks
+ */
+class {
+
+	function configure() {
+		setTimezone( "UTC" );
+
+		// Healthy: a small aggregate query every 30 seconds
+		task( "refresh-stats" )
+			.call( () => getInstance( "ReportService" ).summary() )
+			.delay( 15, "seconds" )
+			.every( 30, "seconds" )
+			.onSuccess( ( task, result ) => log.info( "refresh-stats finished" ) );
+
+		// Failing: throws on every run, with an onFailure hook
+		task( "sync-inventory" )
+			.call( () => throw( type = "InventorySyncError", message = "Connection refused: warehouse.stock.test:443" ) )
+			.delay( 15, "seconds" )
+			.every( 20, "seconds" )
+			.onFailure( ( task, exception ) => log.error( "sync-inventory failed: #exception.message#" ) );
+
+		// Slow: builds the report the slow way, about 12 seconds
+		task( "nightly-report" )
+			.call( () => getInstance( "ReportService" ).build( 8000 ) )
+			.delay( 15, "seconds" )
+			.every( 60, "seconds" );
+
+		// Overlapping: takes 25 seconds on a 10 second interval, and nothing stops the next run
+		task( "overlap" )
+			.call( () => sleep( 25000 ) )
+			.delay( 15, "seconds" )
+			.every( 10, "seconds" );
+
+		// The same work, but with no overlaps: runs that arrive while it is busy are skipped
+		task( "overlap-guarded" )
+			.call( () => sleep( 25000 ) )
+			.delay( 15, "seconds" )
+			.every( 10, "seconds" )
+			.withNoOverlaps();
+
+		// Conditional: only runs on weekdays, so at weekends it is registered but never fires
+		task( "weekday-digest" )
+			.call( () => getInstance( "ReportService" ).summary() )
+			.delay( 15, "seconds" )
+			.every( 1, "minutes" )
+			.when( () => dayOfWeek( now() ) >= 2 && dayOfWeek( now() ) <= 6 );
+
+		// Paused: defined but disabled
+		task( "warm-cache" )
+			.call( () => getInstance( "ProductService" ).list() )
+			.delay( 15, "seconds" )
+			.every( 1, "minutes" )
+			.disable();
+	}
+
+	function onStartup() {
+		// Tasks wait 15 seconds before their first run, so the fixtures are in place
+		log.info( "The application scheduler started" );
+	}
+
+	function onShutdown() {
+		log.info( "The application scheduler stopped" );
+	}
+
+	/** Called whenever any task of this scheduler fails. */
+	function onAnyTaskError( task, exception ) {
+		log.error( "Task #task.getName()# failed: #exception.message#" );
+	}
+
+}

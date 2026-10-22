@@ -1,0 +1,12 @@
+/**
+ * Asks WireBox for a mapping that does not exist: the request that needs this model fails with a WireBox error.
+ */
+class {
+
+	property name="nothing" inject="ThisMappingDoesNotExist";
+
+	function hello() {
+		return "never reached";
+	}
+
+}

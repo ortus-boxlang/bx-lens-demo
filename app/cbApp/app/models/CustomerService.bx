@@ -1,0 +1,26 @@
+/**
+ * Customers.
+ */
+class singleton {
+
+	query function list( numeric max = 20, numeric offset = 0 ) {
+		return queryExecute(
+			"SELECT c.id, c.name, c.email, c.country, ( SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id ) AS orders
+			 FROM customers c ORDER BY c.id OFFSET :offset ROWS FETCH NEXT :max ROWS ONLY",
+			{ offset : { value : arguments.offset, cfsqltype : "integer" }, max : { value : arguments.max, cfsqltype : "integer" } }
+		);
+	}
+
+	query function find( required numeric id ) {
+		return queryExecute( "SELECT id, name, email, country, created FROM customers WHERE id = :id", { id : arguments.id } );
+	}
+
+	query function orders( required numeric id ) {
+		return queryExecute( "SELECT id, status, total, created FROM orders WHERE customer_id = :id ORDER BY id DESC", { id : arguments.id } );
+	}
+
+	numeric function count() {
+		return queryExecute( "SELECT COUNT(*) AS n FROM customers" ).n;
+	}
+
+}

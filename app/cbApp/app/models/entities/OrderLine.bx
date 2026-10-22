@@ -1,0 +1,9 @@
+class extends="quick.models.BaseEntity" accessors="true" table="order_lines" {
+
+	property name="id";
+	property name="order_id";
+	property name="product_id";
+	property name="qty";
+	property name="price";
+
+}

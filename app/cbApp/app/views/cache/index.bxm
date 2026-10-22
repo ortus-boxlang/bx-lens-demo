@@ -1,0 +1,10 @@
+<bx:output>
+<h1>CacheBox</h1>
+<table>
+	<tr><th>Cache</th><th>Objects</th><th>Hits</th><th>Misses</th><th>Evictions</th><th>Hit rate</th></tr>
+	<bx:loop array="#prc.caches#" item="c">
+		<tr><td>#encodeForHTML( c.name )#</td><td>#c.size#</td><td>#c.hits#</td><td>#c.misses#</td><td>#c.evictions#</td><td>#c.hitRate#%</td></tr>
+	</bx:loop>
+</table>
+<p><a class="btn" href="#event.buildLink( 'cache.churn' )#">Churn the default cache</a> <a class="btn" href="#event.buildLink( 'perf.cacheStorm' )#">Miss storm</a></p>
+</bx:output>

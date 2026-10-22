@@ -1,0 +1,108 @@
+/**
+ * Orders. Each method is one story for the debugger: a plain list, an N+1, the joined fix, a slow report, a write that announces an event.
+ */
+class singleton {
+
+	property name="log"                inject="logbox:logger:{this}";
+	property name="interceptorService" inject="coldbox:interceptorService";
+
+	function count( string status = "" ) {
+		return queryExecute(
+			"SELECT COUNT(*) AS n FROM orders WHERE ( :status = '' OR status = :status )",
+			{ status : arguments.status }
+		).n;
+	}
+
+	query function list( numeric max = 20, numeric offset = 0, string status = "" ) {
+		return queryExecute(
+			"SELECT o.id, o.status, o.total, o.created, c.name AS customer
+			 FROM orders o JOIN customers c ON c.id = o.customer_id
+			 WHERE ( :status = '' OR o.status = :status )
+			 ORDER BY o.id DESC OFFSET :offset ROWS FETCH NEXT :max ROWS ONLY",
+			{ status : arguments.status, offset : { value : arguments.offset, cfsqltype : "integer" }, max : { value : arguments.max, cfsqltype : "integer" } }
+		);
+	}
+
+	query function find( required numeric id ) {
+		return queryExecute(
+			"SELECT o.id, o.customer_id, o.status, o.total, o.created, c.name AS customer, c.email
+			 FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = :id",
+			{ id : arguments.id }
+		);
+	}
+
+	query function lines( required numeric orderId ) {
+		return queryExecute(
+			"SELECT l.id, l.qty, l.price, p.sku, p.name FROM order_lines l JOIN products p ON p.id = l.product_id WHERE l.order_id = :id ORDER BY l.id",
+			{ id : arguments.orderId }
+		);
+	}
+
+	/** The classic mistake: one customer query for every order row. */
+	array function withCustomersNPlusOne( numeric limit = 25 ) {
+		var rows = [];
+		for ( var o in queryExecute( "SELECT id, customer_id, total FROM orders ORDER BY id DESC FETCH FIRST #int( arguments.limit )# ROWS ONLY" ) ) {
+			var c = queryExecute( "SELECT name FROM customers WHERE id = :id", { id : o.customer_id } );
+			rows.append( { order : o.id, customer : c.name, total : o.total } );
+		}
+		return rows;
+	}
+
+	/** The fix: one joined query. */
+	array function withCustomersJoined( numeric limit = 25 ) {
+		var rows = [];
+		for ( var o in queryExecute(
+			"SELECT o.id, o.total, c.name FROM orders o JOIN customers c ON c.id = o.customer_id ORDER BY o.id DESC FETCH FIRST #int( arguments.limit )# ROWS ONLY"
+		) ) {
+			rows.append( { order : o.id, customer : o.name, total : o.total } );
+		}
+		return rows;
+	}
+
+	/** A self join over the order lines: slow on purpose, well past a 15 ms threshold. heavy adds a third table and takes seconds. */
+	struct function slowReport( boolean heavy = false ) {
+		var sql = "SELECT COUNT(*) AS pairs, SUM( a.qty * b.qty ) AS weight FROM order_lines a, order_lines b WHERE a.qty + b.qty > 5 AND MOD( a.id + b.id, 7 ) = 0";
+		if ( arguments.heavy ) {
+			sql = "SELECT COUNT(*) AS pairs, SUM( a.qty * b.qty ) AS weight FROM order_lines a, order_lines b, products p WHERE a.qty + b.qty > 5 AND MOD( a.id + b.id + p.id, 7 ) = 0";
+		}
+		var q = queryExecute( sql );
+		return { pairs : q.pairs, weight : q.weight };
+	}
+
+	/** Write: inserts an order and announces onOrderCreated so interceptors (audit, the failing listener) can react. */
+	numeric function create( required numeric customerId, required array items ) {
+		var id = queryExecute( "SELECT COALESCE( MAX( id ), 10000 ) + 1 AS nextId FROM orders" ).nextId;
+		var total = 0;
+		transaction {
+			queryExecute( "INSERT INTO orders VALUES ( :id, :cid, 'open', 0, '2026-10-22' )", { id : id, cid : arguments.customerId } );
+			var lineId = queryExecute( "SELECT COALESCE( MAX( id ), 0 ) AS m FROM order_lines" ).m;
+			for ( var item in arguments.items ) {
+				var p = queryExecute( "SELECT price FROM products WHERE id = :id", { id : item.productId } );
+				if ( !p.recordCount ) {
+					throw( type = "OrderService.UnknownProduct", message = "Product #item.productId# does not exist" );
+				}
+				lineId++;
+				total += p.price * item.qty;
+				queryExecute(
+					"INSERT INTO order_lines VALUES ( :lid, :oid, :pid, :qty, :price )",
+					{ lid : lineId, oid : id, pid : item.productId, qty : item.qty, price : p.price }
+				);
+			}
+			queryExecute( "UPDATE orders SET total = :total WHERE id = :id", { total : total, id : id } );
+		}
+		variables.interceptorService.announce( "onOrderCreated", { orderId : id, customerId : arguments.customerId, total : total } );
+		return id;
+	}
+
+	/** Open orders older than the cut off: what the reports module cleans up. */
+	numeric function staleCount() {
+		return queryExecute( "SELECT COUNT(*) AS n FROM orders WHERE status = 'open' AND created < '2026-03-01'" ).n;
+	}
+
+	numeric function expireStale() {
+		var n = staleCount();
+		queryExecute( "UPDATE orders SET status = 'cancelled' WHERE status = 'open' AND created < '2026-03-01'" );
+		return n;
+	}
+
+}

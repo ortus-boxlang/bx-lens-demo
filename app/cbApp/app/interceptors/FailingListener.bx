@@ -1,0 +1,13 @@
+/**
+ * Listens to the custom onOrderCreated event. It throws when the order was created with ?failListener=1 so the
+ * debugger shows an exception raised inside an interceptor that a service announced.
+ */
+class extends="coldbox.system.Interceptor" {
+
+	function onOrderCreated( event, interceptData, rc, prc ) {
+		if ( structKeyExists( rc, "failListener" ) ) {
+			throw( type = "ListenerError", message = "The onOrderCreated listener failed for order #interceptData.orderId#" );
+		}
+	}
+
+}

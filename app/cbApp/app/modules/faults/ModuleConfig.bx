@@ -1,0 +1,26 @@
+/**
+ * Faults: a fault injector for live demos. Switch it on and every request can get extra latency or a random exception, at a rate you choose,
+ * for a number of minutes. Reset ends it. Entry point /faults.
+ */
+class {
+
+	this.title              = "faults";
+	this.author             = "BxLens demo";
+	this.description        = "Injects latency and exceptions on demand";
+	this.version            = "1.0.0";
+	this.viewParentLookup   = true;
+	this.layoutParentLookup = true;
+	this.entryPoint         = "faults";
+	this.modelNamespace     = "faults";
+	this.cfmapping          = "faults";
+	this.autoMapModels      = true;
+	this.dependencies       = [];
+
+	function configure() {
+		variables.settings = { defaultMinutes : 5 };
+		variables.interceptors = [
+			{ class : "#moduleMapping#.interceptors.FaultInjector", name : "FaultInjector@faults" }
+		];
+	}
+
+}

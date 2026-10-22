@@ -1,0 +1,62 @@
+/**
+ * Orders: the everyday pages. Healthy list, detail, an N+1 and its fix, a slow report and a form that writes.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	property name="orderService"    inject="OrderService";
+	property name="customerService" inject="CustomerService";
+	property name="productService"  inject="ProductService";
+
+	function index( event, rc, prc ) {
+		event.paramValue( "page", 1 ).paramValue( "status", "" );
+		prc.pageSize = 15;
+		prc.orders   = variables.orderService.list( prc.pageSize, ( val( rc.page ) - 1 ) * prc.pageSize, rc.status );
+		prc.total    = variables.orderService.count( rc.status );
+		event.setView( "orders/index" );
+	}
+
+	function show( event, rc, prc ) {
+		event.paramValue( "id", 0 );
+		prc.order = variables.orderService.find( val( rc.id ) );
+		if ( !prc.order.recordCount ) {
+			event.setHTTPHeader( statusCode = 404 );
+			return event.setView( view = "main/notFound", layout = "Main" );
+		}
+		prc.lines = variables.orderService.lines( val( rc.id ) );
+		event.setView( "orders/show" );
+	}
+
+	/** One customer query per order row. */
+	function nPlusOne( event, rc, prc ) {
+		prc.rows  = variables.orderService.withCustomersNPlusOne( val( rc.limit ?: 25 ) );
+		prc.title = "N+1: one query per order";
+		event.setView( "orders/rows" );
+	}
+
+	/** The fix: a single joined query. */
+	function joined( event, rc, prc ) {
+		prc.rows  = variables.orderService.withCustomersJoined( val( rc.limit ?: 25 ) );
+		prc.title = "The same page with one joined query";
+		event.setView( "orders/rows" );
+	}
+
+	function slowReport( event, rc, prc ) {
+		prc.report = variables.orderService.slowReport( heavy = structKeyExists( rc, "heavy" ) );
+		event.setView( "orders/slowReport" );
+	}
+
+	/** GET shows the form, POST creates an order and announces onOrderCreated. */
+	function create( event, rc, prc ) {
+		prc.customers = variables.customerService.list( 50, 0 );
+		prc.products  = variables.productService.list();
+		if ( event.getHTTPMethod() == "POST" ) {
+			var id = variables.orderService.create(
+				val( rc.customerId ),
+				[ { productId : val( rc.productId ), qty : val( rc.qty ?: 1 ) } ]
+			);
+			relocate( event = "orders.show", queryString = "id=#id#" );
+		}
+		event.setView( "orders/create" );
+	}
+
+}

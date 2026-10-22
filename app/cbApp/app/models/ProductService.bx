@@ -1,0 +1,18 @@
+/**
+ * Products and stock.
+ */
+class singleton {
+
+	query function list() {
+		return queryExecute( "SELECT id, sku, name, price, stock FROM products ORDER BY id" );
+	}
+
+	query function lowStock( numeric threshold = 5 ) {
+		return queryExecute( "SELECT id, sku, name, price, stock FROM products WHERE stock <= :t ORDER BY stock, id", { t : arguments.threshold } );
+	}
+
+	query function find( required numeric id ) {
+		return queryExecute( "SELECT id, sku, name, price, stock FROM products WHERE id = :id", { id : arguments.id } );
+	}
+
+}

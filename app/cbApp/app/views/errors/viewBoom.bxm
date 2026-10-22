@@ -1,0 +1,5 @@
+<bx:script>
+	// The view starts to render and then fails
+	writeOutput( "<h1>Half a page</h1>" );
+	throw( type = "DemoViewError", message = "A view threw while it was rendering", detail = "views/errors/viewBoom.bxm" );
+</bx:script>

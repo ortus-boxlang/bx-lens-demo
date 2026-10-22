@@ -1,0 +1,24 @@
+/**
+ * The inventory scheduler, registered by ColdBox as cbScheduler@inventory.
+ */
+class {
+
+	function configure() {
+		setTimezone( "UTC" );
+
+		// Fails whenever a product is out of stock, which the fixtures guarantee
+		task( "restock-check" )
+			.call( () => getInstance( "StockService@inventory" ).restockCheck() )
+			.delay( 20, "seconds" )
+			.every( 45, "seconds" )
+			.onFailure( ( task, exception ) => log.error( "restock-check failed: #exception.message#" ) );
+
+		// Slow: a stock sync that takes 15 seconds
+		task( "stock-sync" )
+			.call( () => getInstance( "StockService@inventory" ).sync( 15000 ) )
+			.delay( 20, "seconds" )
+			.every( 90, "seconds" )
+			.withNoOverlaps();
+	}
+
+}

@@ -1,0 +1,20 @@
+/**
+ * Records every ColdBox event and every created order. It listens to postProcess and to the custom onOrderCreated event.
+ */
+class extends="coldbox.system.Interceptor" {
+
+	property name="auditLog" inject="AuditLog@audit";
+
+	function postProcess( event, interceptData, rc, prc ) {
+		var ev = event.getCurrentEvent();
+		if ( ev.findNoCase( "audit:" ) ) {
+			return;
+		}
+		variables.auditLog.add( "request", ev, getTickCount() - ( prc.cbStarted ?: getTickCount() ) );
+	}
+
+	function onOrderCreated( event, interceptData, rc, prc ) {
+		variables.auditLog.add( "order", "Order #interceptData.orderId# for customer #interceptData.customerId#, total #interceptData.total#" );
+	}
+
+}
