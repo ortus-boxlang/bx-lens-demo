@@ -21,10 +21,6 @@ class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
 				}
 			} );
 
-			it( "does not load cbdebugger, which is installed but excluded", () => {
-				expect( getController().getModuleService().isModuleRegistered( "cbdebugger" ) ).toBeFalse();
-			} );
-
 			it( "renders the reports dashboard", () => {
 				var event = this.get( "reports:main.index" );
 				expect( event.getPrivateValue( "summary" ).orders ).toBeGT( 0 );

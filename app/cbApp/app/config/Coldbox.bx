@@ -86,10 +86,8 @@ class {
 		variables.modules = {
 			// An array of modules names to load, empty means all of them
 			include : [],
-			// An array of modules names to NOT load, empty means none.
-			// cbdebugger is installed in lib/modules but off, so it adds no cost to every request.
-			// Remove it from this list and reinit (?fwreinit=1) to turn the ColdBox debugger on next to BxLens.
-			exclude : [ "cbdebugger" ]
+			// An array of modules names to NOT load, empty means none
+			exclude : []
 		}
 
 		/**

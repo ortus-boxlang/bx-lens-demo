@@ -1,6 +1,0 @@
-/**
- * Fixture for BrowserAnnotationSpec: a project base spec with `@browser`, so the specs extending it browse.
- */
-@browser
-abstract class extends="testbox.system.BaseSpec" {
-}

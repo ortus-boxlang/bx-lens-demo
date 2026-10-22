@@ -31,6 +31,20 @@ cd "$HERE/app"
 echo "+ installing demo modules into ./app/boxlang_modules"
 install-bx-module bx-lens,bx-ai,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
 
+# The ColdBox demo app (app/cbApp) installs ColdBox, TestBox and its modules with bx-cli (BoxLang CommandBox), at the versions pinned in app/cbApp/box.json
+if ! install-bx-module --list 2>/dev/null | grep -q 'bx-cli' && [ ! -d "$HOME/.boxlang/modules/bx-cli" ]; then
+	echo "The ColdBox demo app needs the bx-cli module (BoxLang CommandBox) to install its dependencies."
+	read -r -p "Install it now with 'install-bx-module bx-cli'? [y/N] " answer || answer=""
+	case "$answer" in
+		[yY]*) install-bx-module bx-cli ;;
+		*) echo "Skipping bx-cli. The ColdBox demo app (/cbApp/) will not start without app/cbApp/lib." >&2 ;;
+	esac
+fi
+if command -v box >/dev/null 2>&1; then
+	echo "+ installing ColdBox demo dependencies into ./app/cbApp/lib"
+	(cd "$HERE/app/cbApp" && box install)
+fi
+
 # Keep the demo-only module local to this checkout too.
 mkdir -p "$HERE/app/boxlang_modules"
 rm -rf "$HERE/app/boxlang_modules/demoLens"
