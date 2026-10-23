@@ -36,9 +36,11 @@ Options, all environment variables:
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT`, `HOST` | `8088`, `127.0.0.1` | Where to listen |
-| `WITH_AI` | | Set to `1` to start local Ollama using Docker Compose, pull the configured models, and turn Lensy on (see [Lensy](#lensy-and-ollama)); requires Docker Compose |
+| `WITH_AI` | | Set to `1` to start local Ollama using Compose, pull the configured models, and turn Lensy on (see [Lensy](#lensy-and-ollama)); requires Docker Desktop, OrbStack or Podman with Compose |
+| `SKIP_COMPOSE` | | With `WITH_AI=1`, set to `1` to skip `compose up`/model pull and use the Ollama container that is already running |
+| `SKIP_MODULES` | | Set to `1` to skip all module downloads and reuse whatever is already in `app/boxlang_modules` and `app/cbApp/lib` |
 | `MOCK_SMTP_PORT` | `2525` | Port of the SMTP sink |
-| `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `llama3.2` | Where Lensy finds its model |
+| `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `LiquidAI/lfm2.5-350m` | Where Lensy finds its model |
 
 ### 2. Docker
 
@@ -80,7 +82,7 @@ Lensy uses a model through `bx-ai`. The demo is set up for a local [Ollama](http
 WITH_AI=1 ./start.sh
 ```
 
-With `WITH_AI=1`, the script starts the `ollama` service from `docker-compose.yml` and runs the model-pull service, which fetches `OLLAMA_MODEL` and `nomic-embed-text`. Docker Compose is required. The two `ollama pull` commands above are only needed if you run Ollama yourself instead; in that case set `OLLAMA_URL` if it is not `http://localhost:11434`. Open the console, **AI** page, and press **Test connection**. A larger model answers harder questions better.
+With `WITH_AI=1`, the script starts the `ollama` service from `docker-compose.yml` and runs the model-pull service, which fetches `OLLAMA_MODEL` and `nomic-embed-text`. A running container engine with Compose is required: Docker Desktop, OrbStack or Podman (`docker compose`, `docker-compose`, `podman compose` or `podman-compose`). The two `ollama pull` commands above are only needed if you run Ollama yourself instead; in that case set `OLLAMA_URL` if it is not `http://localhost:11434`. Open the console, **AI** page, and press **Test connection**. A larger model answers harder questions better.
 
 ## Ten minute showcase
 

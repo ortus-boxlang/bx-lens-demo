@@ -23,7 +23,7 @@
 				"ai": {
 					"enabled": false,
 					"provider": "ollama",
-					"model": "llama3.2",
+					"model": "LiquidAI/lfm2.5-350m",
 					"baseUrl": "http://localhost:11434"
 				},
 				"collect": { "level": "full" },

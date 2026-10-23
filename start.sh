@@ -3,7 +3,9 @@
 #
 #   ./start.sh                         install demo modules locally and start on http://localhost:8088
 #   ./start.sh activate                activate BoxLang+ (needs BX_LICENSE_EMAIL and BX_LICENSE_KEY), then start as usual
-#   WITH_AI=1 ./start.sh               start local Ollama with Docker Compose and turn Lensy on
+#   WITH_AI=1 ./start.sh               start local Ollama with Compose (Docker/OrbStack/Podman) and turn Lensy on
+#   WITH_AI=1 SKIP_COMPOSE=1 ./start.sh  turn Lensy on using an Ollama container that is already running
+#   SKIP_MODULES=1 ./start.sh          reuse modules already in app/boxlang_modules and app/cbApp/lib
 #   PORT=9000 HOST=0.0.0.0 ./start.sh
 #
 # Options (all via environment variables):
@@ -11,7 +13,9 @@
 #   HOST              interface to bind (default 127.0.0.1)
 #   RUN_DIR           where generated runtime files live (default ./.run)
 #   MOCK_SMTP_PORT    port for the local mock SMTP server (default 2525)
-#   WITH_AI=1         start Ollama via Docker Compose and enable Lensy
+#   WITH_AI=1         start Ollama via Compose (docker compose, docker-compose, podman compose or podman-compose) and enable Lensy
+#   SKIP_COMPOSE=1    with WITH_AI=1: skip compose up/pull and use the Ollama container already running
+#   SKIP_MODULES=1    skip all module downloads (install-bx-module and box install)
 #   LENS_ACCESS       JSON access mode for the Lens console (default "local")
 #   OLLAMA_URL        Ollama endpoint (default http://localhost:11434)
 #   OLLAMA_MODEL      Ollama model to use (default LiquidAI/lfm2.5-350m)
@@ -50,24 +54,31 @@ fi
 cd "$HERE"
 mkdir -p "$RUN"
 cd "$HERE/app"
-# Install the BoxLang modules the demo pages rely on into ./app/boxlang_modules (local, not global).
-echo "+ installing demo modules into ./app/boxlang_modules"
-install-bx-module bx-lens,bx-ai,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
+# Demo modules are fetched from the registry unless SKIP_MODULES is set to 1, in which
+# case whatever is already on disk is reused (offline runs, or repeated starts).
+if [ "${SKIP_MODULES:-}" = "1" ]; then
+	echo "+ SKIP_MODULES=1: reusing modules already in ./app/boxlang_modules and ./app/cbApp/lib"
+	[ -d "$HERE/app/boxlang_modules" ] || echo "Warning: ./app/boxlang_modules does not exist, the demo may fail to start." >&2
+else
+	# Install the BoxLang modules the demo pages rely on into ./app/boxlang_modules (local, not global).
+	echo "+ installing demo modules into ./app/boxlang_modules"
+	install-bx-module bx-lens,bx-ai,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
 
-# The ColdBox demo app (app/cbApp) installs ColdBox, TestBox and its modules with bx-cli (BoxLang CommandBox), at the versions pinned in app/cbApp/box.json
-# bx-cli is not a dependency of the main demo, so only prompt for it when it is missing.
-if ! install-bx-module --list 2>/dev/null | grep -q 'bx-cli' && [ ! -d "$HOME/.boxlang/modules/bx-cli" ]; then
-	echo "The ColdBox demo app needs the bx-cli module (BoxLang CommandBox) to install its dependencies."
-	read -r -p "Install it now with 'install-bx-module bx-cli'? [y/N] " answer || answer=""
-	case "$answer" in
-		[yY]*) install-bx-module bx-cli ;;
-		*) echo "Skipping bx-cli. The ColdBox demo app (/cbApp/) will not start without app/cbApp/lib." >&2 ;;
-	esac
-fi
-# `box` is the CommandBox CLI; it resolves the pinned dependencies into app/cbApp/lib.
-if command -v box >/dev/null 2>&1; then
-	echo "+ installing ColdBox demo dependencies into ./app/cbApp/lib"
-	(cd "$HERE/app/cbApp" && box install)
+	# The ColdBox demo app (app/cbApp) installs ColdBox, TestBox and its modules with bx-cli (BoxLang CommandBox), at the versions pinned in app/cbApp/box.json
+	# bx-cli is not a dependency of the main demo, so only prompt for it when it is missing.
+	if ! install-bx-module --list 2>/dev/null | grep -q 'bx-cli' && [ ! -d "$HOME/.boxlang/modules/bx-cli" ]; then
+		echo "The ColdBox demo app needs the bx-cli module (BoxLang CommandBox) to install its dependencies."
+		read -r -p "Install it now with 'install-bx-module bx-cli'? [y/N] " answer || answer=""
+		case "$answer" in
+			[yY]*) install-bx-module bx-cli ;;
+			*) echo "Skipping bx-cli. The ColdBox demo app (/cbApp/) will not start without app/cbApp/lib." >&2 ;;
+		esac
+	fi
+	# `box` is the CommandBox CLI; it resolves the pinned dependencies into app/cbApp/lib.
+	if command -v box >/dev/null 2>&1; then
+		echo "+ installing ColdBox demo dependencies into ./app/cbApp/lib"
+		(cd "$HERE/app/cbApp" && box install)
+	fi
 fi
 
 # Keep the demo-only module local to this checkout too.
@@ -83,16 +94,48 @@ OLLAMA_MODEL="${OLLAMA_MODEL:-LiquidAI/lfm2.5-350m}"
 ACCESS="${LENS_ACCESS:-\"local\"}"
 
 # Optional: bring up a local Ollama instance (and pull the model) so Lensy's AI features work.
-if [ "${WITH_AI:-}" = "1" ]; then
-	if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-		echo "WITH_AI=1 needs Docker with the Compose plugin to run local Ollama. Install Docker, or run Ollama yourself and set OLLAMA_URL." >&2
-		exit 1
+# Locate a Compose front end. OrbStack provides the `docker` CLI, so it is covered by the
+# first branch; Podman is supported through `podman compose` or the `podman-compose` binary.
+find_compose() {
+	# The engine must be installed AND running, not just on PATH.
+	if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+		if docker compose version >/dev/null 2>&1; then
+			COMPOSE_CMD=(docker compose)
+			return 0
+		fi
+		if command -v docker-compose >/dev/null 2>&1; then
+			COMPOSE_CMD=(docker-compose)
+			return 0
+		fi
 	fi
+	if command -v podman >/dev/null 2>&1 && podman info >/dev/null 2>&1; then
+		if podman compose version >/dev/null 2>&1; then
+			COMPOSE_CMD=(podman compose)
+			return 0
+		fi
+	fi
+	if command -v podman-compose >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+		COMPOSE_CMD=(podman-compose)
+		return 0
+	fi
+	return 1
+}
+
+if [ "${WITH_AI:-}" = "1" ]; then
 	export OLLAMA_MODEL
-	echo "+ starting local Ollama with Docker Compose and preparing models (this can take a while the first time)"
-	docker compose up -d ollama
-	# Waits until the configured model is pulled locally, then exits.
-	docker compose run --rm ollama-pull
+	# Nothing to start when the Ollama container is already up: just point Lensy at it.
+	if [ "${SKIP_COMPOSE:-}" = "1" ]; then
+		echo "+ SKIP_COMPOSE=1: using the Ollama already running at $OLLAMA_URL (no compose up/pull)"
+	else
+		if ! find_compose; then
+			echo "WITH_AI=1 needs a running container engine with Compose: Docker Desktop, OrbStack or Podman (docker compose, docker-compose, podman compose or podman-compose). Install or start one, or run Ollama yourself and set OLLAMA_URL." >&2
+			exit 1
+		fi
+		echo "+ starting local Ollama with '${COMPOSE_CMD[*]}' (this can take a while the first time)"
+		"${COMPOSE_CMD[@]}" up -d ollama
+		# Waits until the configured model is pulled locally, then exits.
+		"${COMPOSE_CMD[@]}" run --rm ollama-pull
+	fi
 fi
 
 # --- Generate the runtime config ---

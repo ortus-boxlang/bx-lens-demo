@@ -12,7 +12,7 @@ services:
     environment:
       WITH_AI: "1"
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-LiquidAI/lfm2.5-350m}
       LENS_VERSION: ${LENS_VERSION:-latest}
       LENS_ZIP: ${LENS_ZIP:-}
     volumes:
@@ -42,7 +42,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_MODEL:-llama3.2} && ollama pull nomic-embed-text"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_MODEL:-LiquidAI/lfm2.5-350m} && ollama pull nomic-embed-text"]
     restart: "no"
 
 volumes:
