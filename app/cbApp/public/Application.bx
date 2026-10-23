@@ -23,18 +23,18 @@ class{
 	 * --------------------------------------------------------------------------
 	 * Location Mappings
 	 * --------------------------------------------------------------------------
-	 * These are pre-defined in the runtime/config/boxlang.json so they can
-	 * be reused.  You can change them here if you want.
+	 * Mirrors the mappings from config/boxlang.json so the ColdBox sub-app is
+	 * self-contained and does not depend on server-level configuration.
 	 */
 	_publicRoot = getDirectoryFromPath( getCurrentTemplatePath() );
 	_cbRoot     = getDirectoryFromPath( _publicRoot.reReplace( "[/\\\\]$", "" ) );
-	// The template keeps these in a server level boxlang.json. In the demo they are per application, so they cannot clash with the main app.
-	this.mappings[ "/app" ]     = _cbRoot & "app";
-	this.mappings[ "/public" ]  = _publicRoot;
-	this.mappings[ "/coldbox" ] = _cbRoot & "lib/coldbox";
-	this.mappings[ "/modules" ] = _cbRoot & "lib/modules";
-	this.mappings[ "/testbox" ] = _cbRoot & "lib/testbox";
-	this.mappings[ "/tests" ]   = _cbRoot & "tests";
+	this.mappings[ "/app" ]                      = _cbRoot & "app";
+	this.mappings[ "/public" ]                   = _publicRoot;
+	this.mappings[ "/coldbox" ]                  = _cbRoot & "lib/coldbox";
+	this.mappings[ "/coldbox/system/exceptions" ] = _cbRoot & "lib/coldbox/system/exceptions";
+	this.mappings[ "/modules" ]                  = _cbRoot & "lib/modules";
+	this.mappings[ "/testbox" ]                  = _cbRoot & "lib/testbox";
+	this.mappings[ "/tests" ]                    = _cbRoot & "tests";
 
 	/**
 	 * --------------------------------------------------------------------------
