@@ -26,18 +26,26 @@ set -euo pipefail
 
 # Resolve the repository root regardless of where the script is invoked from.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# Runtime settings, all overridable from the environment.
+BOXLANG_HOME="$HERE/.boxlang"
 PORT="${PORT:-8088}"
 HOST="${HOST:-127.0.0.1}"
 RUN="${RUN_DIR:-$HERE/.run}"
 SMTP_PORT="${MOCK_SMTP_PORT:-2525}"
 
+# ---------------------------------------------------------------------------------
 # --- Preflight: verify the BoxLang toolchain is available before doing any work ---
+# ---------------------------------------------------------------------------------
 
 # The engine itself is required to run the demo.
 if ! command -v boxlang >/dev/null 2>&1; then
 	echo "BoxLang is not installed or 'boxlang' is not on PATH." >&2
 	echo "Install BoxLang with the Quick Installer or BVM, then rerun ./start.sh." >&2
+	exit 1
+fi
+
+# The MiniServer is what actually serves the demo; fail early if it is missing.
+if ! command -v boxlang-miniserver >/dev/null 2>&1; then
+	echo "boxlang-miniserver was not found. Install it with the BoxLang Quick Installer or BVM, then rerun ./start.sh." >&2
 	exit 1
 fi
 
@@ -47,13 +55,27 @@ if ! command -v install-bx-module >/dev/null 2>&1; then
 	exit 1
 fi
 
-# --- Install modules ---
+# The ColdBox demo app (app/cbApp) installs ColdBox, TestBox and its modules with bx-cli (BoxLang CommandBox), at the versions pinned in app/cbApp/box.json
+# bx-cli is not a dependency of the main demo, so only prompt for it when it is missing.
+if ! install-bx-module --list 2>/dev/null | grep -q 'bx-cli' && [ ! -d "$HOME/.boxlang/modules/bx-cli" ]; then
+    echo "The ColdBox demo app needs the bx-cli module (BoxLang CommandBox) to install its dependencies."
+    read -r -p "Install it now with 'install-bx-module bx-cli'? [y/N] " answer || answer=""
+    case "$answer" in
+        [yY]*) install-bx-module bx-cli ;;
+        *) echo "Skipping bx-cli. The ColdBox demo app (/cbApp/) will not start without app/cbApp/lib." >&2 ;;
+    esac
+fi
+
+# ---------------------------------------------------------------------------------
+# --- Install modules ---`
+# ---------------------------------------------------------------------------------`
 
 # Work from the repo root so relative paths below stay predictable, and make sure
 # the runtime directory exists for the generated config, logs and SMTP inbox.
 cd "$HERE"
 mkdir -p "$RUN"
 cd "$HERE/app"
+
 # Demo modules are fetched from the registry unless SKIP_MODULES is set to 1, in which
 # case whatever is already on disk is reused (offline runs, or repeated starts).
 if [ "${SKIP_MODULES:-}" = "1" ]; then
@@ -61,24 +83,12 @@ if [ "${SKIP_MODULES:-}" = "1" ]; then
 	[ -d "$HERE/app/boxlang_modules" ] || echo "Warning: ./app/boxlang_modules does not exist, the demo may fail to start." >&2
 else
 	# Install the BoxLang modules the demo pages rely on into ./app/boxlang_modules (local, not global).
-	echo "+ installing demo modules into ./app/boxlang_modules"
-	install-bx-module bx-lens,bx-ai,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
+	echo "+ installing BoxLang modules into ./app/boxlang_modules"
+	install-bx-module bx-lens,bx-ai@be,bx-derby,bx-compat-cfml,bx-plus,bx-orm,bx-mail --local
 
-	# The ColdBox demo app (app/cbApp) installs ColdBox, TestBox and its modules with bx-cli (BoxLang CommandBox), at the versions pinned in app/cbApp/box.json
-	# bx-cli is not a dependency of the main demo, so only prompt for it when it is missing.
-	if ! install-bx-module --list 2>/dev/null | grep -q 'bx-cli' && [ ! -d "$HOME/.boxlang/modules/bx-cli" ]; then
-		echo "The ColdBox demo app needs the bx-cli module (BoxLang CommandBox) to install its dependencies."
-		read -r -p "Install it now with 'install-bx-module bx-cli'? [y/N] " answer || answer=""
-		case "$answer" in
-			[yY]*) install-bx-module bx-cli ;;
-			*) echo "Skipping bx-cli. The ColdBox demo app (/cbApp/) will not start without app/cbApp/lib." >&2 ;;
-		esac
-	fi
-	# `box` is the CommandBox CLI; it resolves the pinned dependencies into app/cbApp/lib.
-	if command -v box >/dev/null 2>&1; then
-		echo "+ installing ColdBox demo dependencies into ./app/cbApp/lib"
-		(cd "$HERE/app/cbApp" && box install)
-	fi
+	# Install ColdBox and its dependencies into app/cbApp/lib using the pinned versions in box.json
+    echo "+ installing ColdBox demo dependencies into ./app/cbApp/lib"
+    (cd "$HERE/app/cbApp" && box install)
 fi
 
 # Keep the demo-only module local to this checkout too.
@@ -121,6 +131,10 @@ find_compose() {
 	return 1
 }
 
+# ---------------------------------------------------------------------------------
+# --- AI Setup ---`
+# ---------------------------------------------------------------------------------`
+
 if [ "${WITH_AI:-}" = "1" ]; then
 	export OLLAMA_MODEL
 	# Nothing to start when the Ollama container is already up: just point Lensy at it.
@@ -138,7 +152,10 @@ if [ "${WITH_AI:-}" = "1" ]; then
 	fi
 fi
 
+# ---------------------------------------------------------------------------------
 # --- Generate the runtime config ---
+# ---------------------------------------------------------------------------------
+
 # Copy the template out of ./config (never edit it in place, it is versioned) and fill in
 # the @PLACEHOLDER@ tokens with the settings resolved above.
 CONFIG_FILE="$RUN/boxlang.json"
@@ -153,7 +170,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# ---------------------------------------------------------------------------------
 # --- Optional BoxLang+ activation ---
+# ---------------------------------------------------------------------------------
+
 # `./start.sh activate` activates the license using the credentials from the environment,
 # then continues with a normal start. `:?` aborts with a message if a variable is unset.
 if [ "${1:-}" = "activate" ]; then
@@ -171,15 +191,17 @@ export MOCK_SMTP_PORT="$SMTP_PORT" MOCK_SMTP_INBOX="$RUN/inbox.log"
 boxlang "$HERE/mock-smtp/smtp.bxs" > "$RUN/smtp.log" 2>&1 &
 SMTP_PID=$!
 
+# ---------------------------------------------------------------------------------
 # --- Start the web server ---
+# ---------------------------------------------------------------------------------
 echo "+ demo on http://localhost:$PORT. Console: http://localhost:$PORT/~bxlens/index.bxm  password: lens-demo"
 # Let /~bxlens/ reach BoxLang: the default pass predicate plus the console path.
 export BOXLANG_PASS_PREDICATE='regex( '"'"'^(/.+?\.cfml|/.+?\.cf[cms]|.+?\.bx[ms]{0,1})(/.*)?$'"'"' ) or regex( '"'"'^/~bxlens/?$'"'"' )'
 # Prefer the MiniServer; it runs in the foreground so the trap fires when it stops.
-if command -v boxlang-miniserver >/dev/null 2>&1; then
-	export BOXLANG_DEMO_PORT="$PORT"
-	boxlang-miniserver --webroot . --host "$HOST" --port "$PORT" --configPath "$CONFIG_FILE"
-else
-	echo "MiniServer was not found. Install it with the BoxLang Quick Installer or BVM, then rerun ./start.sh." >&2
-	exit 1
-fi
+# (Already verified above in the preflight section.)
+export BOXLANG_DEMO_PORT="$PORT"
+boxlang-miniserver --webroot . \
+	--host "$HOST" \
+	--port "$PORT" \
+	--configPath "$CONFIG_FILE" \
+	--serverHome "$BOXLANG_HOME"

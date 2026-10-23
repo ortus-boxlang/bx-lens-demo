@@ -7,16 +7,16 @@
     "language": "boxlang",
     "shortDescription": "A ColdBox application for the BxLens demo: errors, slow rendering, N+1 queries, modules and schedulers",
     "dependencies": {
-        "coldbox": "8.3.0",
-        "cbvalidation": "4.9.1",
-        "cbmessagebox": "4.1.0",
-        "route-visualizer": "2.2.0",
-        "qb": "14.1.2",
-        "quick": "13.0.6",
-        "cbmockdata": "4.1.0"
+        "coldbox": "^8.3.0",
+        "cbvalidation": "^4.9.1",
+        "cbmessagebox": "^4.1.0",
+        "route-visualizer": "^2.2.0",
+        "qb": "^14.1.2",
+        "quick": "^13.0.6",
+        "cbmockdata": "^4.1.0"
     },
     "devDependencies": {
-        "testbox": "7.2.2"
+        "testbox": "^7"
     },
     "installPaths": {
         "coldbox": "lib/coldbox/",
