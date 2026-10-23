@@ -27,15 +27,15 @@ The script checks that BoxLang is available, changes into `app/`, and installs `
 
 | | |
 |---|---|
-| Demo | <http://localhost:8085> |
-| Console | <http://localhost:8085/~bxlens/index.bxm> |
+| Demo | <http://localhost:8088> |
+| Console | <http://localhost:8088/~bxlens/index.bxm> |
 | Console password | `lens-demo` (admin) and `lens-view` (viewer) |
 
 Options, all environment variables:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT`, `HOST` | `8085`, `127.0.0.1` | Where to listen |
+| `PORT`, `HOST` | `8088`, `127.0.0.1` | Where to listen |
 | `LENS_LICENSE` | | Show a license state in the console: `trial`, `plus`, `expired` or `none` |
 | `WITH_AI` | | Set to `1` to start local Ollama using Docker Compose, pull the configured models, and turn Lensy on (see [Lensy](#lensy-and-ollama)); requires Docker Compose |
 | `MOCK_SMTP_PORT` | `2525` | Port of the SMTP sink |
@@ -85,7 +85,7 @@ With `WITH_AI=1`, the script starts the `ollama` service from `docker-compose.ym
 
 ## Ten minute showcase
 
-Open the demo, start the console in another tab (<http://localhost:8085/~bxlens/index.bxm>, log in with `lens-demo`). Keep the bar closed until you need it.
+Open the demo, start the console in another tab (<http://localhost:8088/~bxlens/index.bxm>, log in with `lens-demo`). Keep the bar closed until you need it.
 
 | # | Do this | Show |
 |---|---|---|
@@ -166,7 +166,7 @@ Set `WITH_AI=1` to enable the three Ollama-backed agents as well. The scheduler 
 ### ColdBox app
 
 `app/cbApp` is a real ColdBox application, generated with `coldbox create app skeleton=boxlang` (the BoxLang template) and extended. Open it at
-<http://localhost:8085/cbApp/> (it forwards to `/cbApp/public/index.bxm`). It has its own datasource (`cbdemo`, in memory Derby), seeded at start from
+<http://localhost:8088/cbApp/> (it forwards to `/cbApp/public/index.bxm`). It has its own datasource (`cbdemo`, in memory Derby), seeded at start from
 JSON fixtures in `resources/data` (40 customers, 30 products, 300 orders, 921 order lines).
 
 Its home page lists every scenario with what it does and where to look in BxLens. They cover what you debug in a ColdBox app:
@@ -192,7 +192,7 @@ The four custom modules in `app/modules` each have handlers, views, models and t
 **Schedulers.** The app and each custom module register a ColdBox scheduler (`appScheduler@coldbox`, `cbScheduler@reports`, `@inventory`, `@audit`, `@faults`), 15 tasks in all: healthy, failing, slow, overlapping, overlap guarded, conditional (`when`), calendar (`onWeekdays`) and paused. The `schedulers` page lists them with runs and failures and can run a task now.
 ColdBox manages these schedulers itself and does **not** register them with the BoxLang scheduler service (checked: the service lists only the mail and BoxLang+ schedulers). So BxLens's **Tasks** page, which reads that service, does not list them. Their effect still shows up in **Threads** (worker threads, the 25 second tasks) and in the logs. The BoxLang scheduler in the main app is the one the Tasks page shows.
 
-**Tests.** `app/cbApp/tests` has 47 TestBox specs (integration, API, errors, modules, schedulers, services). Run them at <http://localhost:8085/cbApp/tests/runner.bxm> or with `./test/smoke.sh`, which also walks every scenario of the catalog and checks its status.
+**Tests.** `app/cbApp/tests` has 47 TestBox specs (integration, API, errors, modules, schedulers, services). Run them at <http://localhost:8088/cbApp/tests/runner.bxm> or with `./test/smoke.sh`, which also walks every scenario of the catalog and checks its status.
 
 Good to know: a framework reinit (`?fwreinit=1`) takes 12 to 22 seconds here, because shutting down the schedulers waits for the long running tasks. That is a scenario in itself. The data survives a reinit, and **Reset the data** on the home page reloads it. After changing a model, reinit.
 

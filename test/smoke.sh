@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Requests every page of a running demo and checks the status code.
-#   ./test/smoke.sh                       against http://localhost:8085
+#   ./test/smoke.sh                       against http://localhost:8088
 #   BASE=http://localhost:9000 ./test/smoke.sh
 # Pages that fail on purpose must answer 500, all others 200. Needs the real bx-lens module, because the pages call lensMessage() and friends.
-BASE="${BASE:-http://localhost:8085}"
+BASE="${BASE:-http://localhost:8088}"
 fail=0
 check() { # expected path
 	code="$(curl -s -o /dev/null -m 40 -w '%{http_code}' "$BASE$2")"

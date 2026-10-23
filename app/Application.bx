@@ -52,7 +52,7 @@ class {
 		}
 		application.scenarios = new demo.models.Scenarios();
 		application.aiDemo = new demo.models.AIDemo(
-			port = val( getSystemSetting( "BOXLANG_DEMO_PORT", "8085" ) ),
+			port = val( getSystemSetting( "BOXLANG_DEMO_PORT", "8088" ) ),
 			agentsEnabled = getSystemSetting( "WITH_AI", "" ) == "1"
 		);
 		application.aiDemo.registerServers();

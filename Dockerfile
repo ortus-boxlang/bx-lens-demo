@@ -4,9 +4,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl unzip && r
 WORKDIR /demo
 COPY . /demo
 RUN chmod +x /demo/start.sh
-ENV HOST=0.0.0.0 PORT=8085
+ENV HOST=0.0.0.0 PORT=8088
 # A published port reaches the container from the Docker network, which is not loopback. Allow loopback and private networks.
 # This is for a demo on your own machine. Do not do this on a server other people can reach.
 ENV LENS_ACCESS='["local","private"]'
-EXPOSE 8085
+EXPOSE 8088
 CMD ["./start.sh"]
