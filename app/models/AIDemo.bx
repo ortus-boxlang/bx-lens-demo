@@ -21,49 +21,75 @@ class {
 			.setDescription( "Synthetic runtime metrics and demo events for BxLens" )
 			.setVersion( "1.0.0" )
 			.registerTools( [
-				aiTool( "get_runtime_snapshot", "Return a synthetic runtime snapshot for an area", ( area ) => {
-					return {
-						area : arguments.area,
-						activeRequests : randRange( 1, 12 ),
-						queueDepth : randRange( 0, 8 ),
-						sampledAt : now().toString(),
-						status : "healthy"
-					};
-				} ).addParameter( aiToolParam( "area", "string", "Runtime area to inspect" ).required() ),
-				aiTool( "record_demo_event", "Record a synthetic operational event", ( message, level ) => {
-					writeLog( text = "MCP demo event [#arguments.level#]: #arguments.message#", type = "information", log = "demo" );
-					return { recorded : true, level : arguments.level, message : arguments.message, recordedAt : now().toString() };
-				} )
-					.addParameter( aiToolParam( "message", "string", "Short event message" ).required() )
-					.addParameter( aiToolParam( "level", "string", "Event level such as info or warning" ).required() )
+				aiTool(
+					name : "get_runtime_snapshot",
+					description : "Return a synthetic runtime snapshot for an area",
+					parameters : [
+						{ name : "area", type : "string", description : "Runtime area to inspect", required : true }
+					],
+					callback : ( area ) => {
+						return {
+							area : arguments.area,
+							activeRequests : randRange( 1, 12 ),
+							queueDepth : randRange( 0, 8 ),
+							sampledAt : now().toString(),
+							status : "healthy"
+						};
+					}
+				),
+				aiTool(
+					name : "record_demo_event",
+					description : "Record a synthetic operational event",
+					parameters : [
+						{ name : "message", type : "string", description : "Short event message", required : true },
+						{ name : "level", type : "string", description : "Event level such as info or warning", required : true }
+					],
+					callback : ( message, level ) => {
+						writeLog( text = "MCP demo event [#arguments.level#]: #arguments.message#", type = "information", log = "demo" );
+						return { recorded : true, level : arguments.level, message : arguments.message, recordedAt : now().toString() };
+					}
+				)
 			] );
 
 		mcpServer( "bxLensOperations" )
 			.setDescription( "Synthetic order lookup and shipping operations for BxLens" )
 			.setVersion( "1.0.0" )
 			.registerTools( [
-				aiTool( "lookup_order_status", "Look up a synthetic order status", ( orderId ) => {
-					return {
-						orderId : arguments.orderId,
-						status : arguments.orderId mod 3 == 0 ? "shipped" : "processing",
-						checkedAt : now().toString()
-					};
-				} ).addParameter( aiToolParam( "orderId", "number", "Numeric demo order identifier" ).required() ),
-				aiTool( "calculate_shipping", "Estimate shipping and optionally simulate a downstream failure", ( weightKg, expedited, simulateFailure ) => {
-					if ( arguments.simulateFailure ) {
-						throw( type = "MCPDemoUpstreamError", message = "Synthetic carrier API timeout from mcp-shipping.test" );
+				aiTool(
+					name : "lookup_order_status",
+					description : "Look up a synthetic order status",
+					parameters : [
+						{ name : "orderId", type : "number", description : "Numeric demo order identifier", required : true }
+					],
+					callback : ( orderId ) => {
+						return {
+							orderId : arguments.orderId,
+							status : arguments.orderId mod 3 == 0 ? "shipped" : "processing",
+							checkedAt : now().toString()
+						};
 					}
-					var baseCost = max( 4, arguments.weightKg * 1.75 );
-					return {
-						weightKg : arguments.weightKg,
-						expedited : arguments.expedited,
-						cost : round( ( baseCost + ( arguments.expedited ? 8 : 0 ) ) * 100 ) / 100,
-						currency : "USD"
-					};
-				} )
-					.addParameter( aiToolParam( "weightKg", "number", "Parcel weight in kilograms" ).required() )
-					.addParameter( aiToolParam( "expedited", "boolean", "Whether expedited shipping is requested" ).required() )
-					.addParameter( aiToolParam( "simulateFailure", "boolean", "Throw a synthetic carrier error when true" ).required() )
+				),
+				aiTool(
+					name : "calculate_shipping",
+					description : "Estimate shipping and optionally simulate a downstream failure",
+					parameters : [
+						{ name : "weightKg", type : "number", description : "Parcel weight in kilograms", required : true },
+						{ name : "expedited", type : "boolean", description : "Whether expedited shipping is requested", required : true },
+						{ name : "simulateFailure", type : "boolean", description : "Throw a synthetic carrier error when true", required : true }
+					],
+					callback : ( weightKg, expedited, simulateFailure ) => {
+						if ( arguments.simulateFailure ) {
+							throw( type = "MCPDemoUpstreamError", message = "Synthetic carrier API timeout from mcp-shipping.test" );
+						}
+						var baseCost = max( 4, arguments.weightKg * 1.75 );
+						return {
+							weightKg : arguments.weightKg,
+							expedited : arguments.expedited,
+							cost : round( ( baseCost + ( arguments.expedited ? 8 : 0 ) ) * 100 ) / 100,
+							currency : "USD"
+						};
+					}
+				)
 			] );
 
 		return true;
