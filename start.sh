@@ -16,7 +16,7 @@
 #   LENS_LICENSE      license badge shown in the console (trial/plus/expired/none)
 #   LENS_ACCESS       JSON access mode for the Lens console (default "local")
 #   OLLAMA_URL        Ollama endpoint (default http://localhost:11434)
-#   OLLAMA_MODEL      Ollama model to use (default llama3.2)
+#   OLLAMA_MODEL      Ollama model to use (default LiquidAI/lfm2.5-350m)
 #   BX_LICENSE_EMAIL  BoxLang+ email, required by the "activate" subcommand
 #   BX_LICENSE_KEY    BoxLang+ license key, required by the "activate" subcommand
 #   BX_SERVER_TYPE    BoxLang+ server type for activation (default Development)
@@ -80,7 +80,7 @@ cp -R "$HERE/modules/demoLens" "$HERE/app/boxlang_modules/demoLens"
 
 # Settings. LENS_ACCESS is a JSON value: "local" (default), or ["local","private"] for a container
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-LiquidAI/lfm2.5-350m}"
 # Note the escaped inner quotes: the value is substituted verbatim into the JSON config.
 ACCESS="${LENS_ACCESS:-\"local\"}"
 
