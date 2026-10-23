@@ -33,22 +33,31 @@ class {
 	}
 
 	function onApplicationStart() {
-		queryExecute( "CREATE TABLE customers ( id INT PRIMARY KEY, name VARCHAR(80), country VARCHAR(2) )" );
-		queryExecute( "CREATE TABLE orders ( id INT PRIMARY KEY, customer_id INT, total DECIMAL(10,2), status VARCHAR(20) )" );
-		queryExecute( "CREATE TABLE numbers ( n INT PRIMARY KEY )" );
-		var names = [ "Acme Freight", "Northwind Traders", "Globex", "Initech", "Umbrella Supply", "Hooli", "Stark Industries", "Wayne Logistics", "Wonka Foods", "Cyberdyne", "Soylent", "Tyrell Corp" ];
-		var countries = [ "US", "GB", "DE", "FR", "CA", "AU" ];
-		names.each( ( n, i ) => {
-			queryExecute( "INSERT INTO customers VALUES ( :id, :name, :country )", { id : i, name : n, country : countries[ ( i - 1 ) % 6 + 1 ] } );
-		} );
-		for ( var i = 1; i <= 30; i++ ) {
-			queryExecute(
-				"INSERT INTO orders VALUES ( :id, :cid, :total, :status )",
-				{ id : 10400 + i, cid : ( i - 1 ) % 12 + 1, total : i * 37.5, status : i % 5 == 0 ? "shipped" : "open" }
-			);
+		// In-memory Derby can survive across application restarts inside the same JVM,
+		// so guard every CREATE TABLE to keep onApplicationStart idempotent.
+		try { queryExecute( "CREATE TABLE customers ( id INT PRIMARY KEY, name VARCHAR(80), country VARCHAR(2) )" ); } catch ( any e ) {}
+		try { queryExecute( "CREATE TABLE orders ( id INT PRIMARY KEY, customer_id INT, total DECIMAL(10,2), status VARCHAR(20) )" ); } catch ( any e ) {}
+		try { queryExecute( "CREATE TABLE numbers ( n INT PRIMARY KEY )" ); } catch ( any e ) {}
+		// Re-seed only when the tables are empty (first start or after a manual wipe).
+		if ( queryExecute( "SELECT COUNT(*) AS c FROM customers" ).c == 0 ) {
+			var names = [ "Acme Freight", "Northwind Traders", "Globex", "Initech", "Umbrella Supply", "Hooli", "Stark Industries", "Wayne Logistics", "Wonka Foods", "Cyberdyne", "Soylent", "Tyrell Corp" ];
+			var countries = [ "US", "GB", "DE", "FR", "CA", "AU" ];
+			names.each( ( n, i ) => {
+				queryExecute( "INSERT INTO customers VALUES ( :id, :name, :country )", { id : i, name : n, country : countries[ ( i - 1 ) % 6 + 1 ] } );
+			} );
 		}
-		for ( var n = 1; n <= 160; n++ ) {
-			queryExecute( "INSERT INTO numbers VALUES ( :n )", { n : n } );
+		if ( queryExecute( "SELECT COUNT(*) AS c FROM orders" ).c == 0 ) {
+			for ( var i = 1; i <= 30; i++ ) {
+				queryExecute(
+					"INSERT INTO orders VALUES ( :id, :cid, :total, :status )",
+					{ id : 10400 + i, cid : ( i - 1 ) % 12 + 1, total : i * 37.5, status : i % 5 == 0 ? "shipped" : "open" }
+				);
+			}
+		}
+		if ( queryExecute( "SELECT COUNT(*) AS c FROM numbers" ).c == 0 ) {
+			for ( var n = 1; n <= 160; n++ ) {
+				queryExecute( "INSERT INTO numbers VALUES ( :n )", { n : n } );
+			}
 		}
 		application.scenarios = new demo.models.Scenarios();
 		application.aiDemo = new demo.models.AIDemo(
