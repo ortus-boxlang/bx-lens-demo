@@ -36,7 +36,6 @@ Options, all environment variables:
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT`, `HOST` | `8088`, `127.0.0.1` | Where to listen |
-| `LENS_LICENSE` | | Show a license state in the console: `trial`, `plus`, `expired` or `none` |
 | `WITH_AI` | | Set to `1` to start local Ollama using Docker Compose, pull the configured models, and turn Lensy on (see [Lensy](#lensy-and-ollama)); requires Docker Compose |
 | `MOCK_SMTP_PORT` | `2525` | Port of the SMTP sink |
 | `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `llama3.2` | Where Lensy finds its model |
@@ -71,7 +70,7 @@ export BX_LICENSE_KEY="..."
 ./start.sh activate
 ```
 
-This runs `module:plus activate` against the BoxLang installation selected by your Quick Installer or BVM setup. To show only a license *state* without a real license, use `LENS_LICENSE=trial|plus|expired|none`.
+This runs `module:plus activate` against the BoxLang installation selected by your Quick Installer or BVM setup.
 
 ### Lensy and Ollama
 

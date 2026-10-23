@@ -4,7 +4,6 @@
 #   ./start.sh                         install demo modules locally and start on http://localhost:8088
 #   ./start.sh activate                activate BoxLang+ (needs BX_LICENSE_EMAIL and BX_LICENSE_KEY), then start as usual
 #   WITH_AI=1 ./start.sh               start local Ollama with Docker Compose and turn Lensy on
-#   LENS_LICENSE=trial ./start.sh      show a license state in the console: trial, plus, expired or none
 #   PORT=9000 HOST=0.0.0.0 ./start.sh
 #
 # Options (all via environment variables):
@@ -13,7 +12,6 @@
 #   RUN_DIR           where generated runtime files live (default ./.run)
 #   MOCK_SMTP_PORT    port for the local mock SMTP server (default 2525)
 #   WITH_AI=1         start Ollama via Docker Compose and enable Lensy
-#   LENS_LICENSE      license badge shown in the console (trial/plus/expired/none)
 #   LENS_ACCESS       JSON access mode for the Lens console (default "local")
 #   OLLAMA_URL        Ollama endpoint (default http://localhost:11434)
 #   OLLAMA_MODEL      Ollama model to use (default LiquidAI/lfm2.5-350m)
@@ -102,7 +100,7 @@ fi
 # the @PLACEHOLDER@ tokens with the settings resolved above.
 CONFIG_FILE="$RUN/boxlang.json"
 cp "$HERE/config/boxlang.json" "$CONFIG_FILE"
-sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_LICENSE@|${LENS_LICENSE:-}|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|g; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|g" "$CONFIG_FILE"
+sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|g; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|g" "$CONFIG_FILE"
 
 # --- Cleanup on exit ---
 # Stop the background SMTP server and remove the generated config, however the script ends.
