@@ -30,6 +30,8 @@ BOXLANG_HOME="$HERE/.boxlang"
 PORT="${PORT:-8088}"
 HOST="${HOST:-127.0.0.1}"
 RUN="${RUN_DIR:-$HERE/.run}"
+# Folders the demo's file watchers watch (the watchers page writes into them)
+export DEMO_WATCH_DIR="${DEMO_WATCH_DIR:-$RUN/watched}"
 SMTP_PORT="${MOCK_SMTP_PORT:-2525}"
 
 # ---------------------------------------------------------------------------------
@@ -160,7 +162,8 @@ fi
 # the @PLACEHOLDER@ tokens with the settings resolved above.
 CONFIG_FILE="$RUN/boxlang.json"
 cp "$HERE/config/boxlang.json" "$CONFIG_FILE"
-sed -i "s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|g; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|g" "$CONFIG_FILE"
+mkdir -p "$DEMO_WATCH_DIR/global"
+sed -i "s|@WATCH_DIR@|$DEMO_WATCH_DIR|g; s|@LENS_ACCESS@|$ACCESS|g; s|@MOCK_SMTP_PORT@|$SMTP_PORT|; s|@LENS_AI_ENABLED@|$([ -n "${WITH_AI:-}" ] && echo true || echo false)|; s|@OLLAMA_URL@|$OLLAMA_URL|g; s|@OLLAMA_MODEL@|$OLLAMA_MODEL|g" "$CONFIG_FILE"
 
 # --- Cleanup on exit ---
 # Stop the background SMTP server and remove the generated config, however the script ends.

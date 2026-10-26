@@ -32,6 +32,34 @@ class {
 		};
 	}
 
+	// File watchers, one for each state BxLens can show. Each watches a folder under DEMO_WATCH_DIR (start.sh sets it to .run/watched).
+	// The watchers page drops, edits and deletes files there. The global-config watcher is defined in boxlang.json instead.
+	watchRoot = getSystemSetting( "DEMO_WATCH_DIR", getTempDirectory() & "bxlens-demo-watched" );
+	[ "inbox", "config", "slow", "failing", "chatty", "stopped", "global" ].each( ( d ) => directoryCreate( watchRoot & "/" & d, true, true ) );
+	this.watchers = {
+		// Healthy: a struct listener that ingests dropped CSV files
+		"inbox" : {
+			paths     : [ watchRoot & "/inbox" ],
+			debounce  : 100,
+			listener  : {
+				onCreate : ( event ) => {
+					var rows = fileRead( event.path ).listLen( char( 10 ) );
+					new demo.models.watchers.WatcherLog().add( "inbox", "created", event.relativePath, "#rows# rows ingested" );
+				},
+				onModify : ( event ) => new demo.models.watchers.WatcherLog().add( "inbox", "modified", event.relativePath, "re-read" ),
+				onDelete : ( event ) => new demo.models.watchers.WatcherLog().add( "inbox", "deleted", event.relativePath, "removed from the index" )
+			}
+		},
+		// Debounced: one reload for a burst of saves
+		"config-reload" : { paths : [ watchRoot & "/config" ], listener : "demo.models.watchers.ConfigReloadListener", debounce : 1000, atomicWrites : true },
+		// Slow listener: 3 seconds per event
+		"slow-listener" : { paths : [ watchRoot & "/slow" ], listener : "demo.models.watchers.SlowListener" },
+		// Failing listener: stops itself after 5 errors in a row
+		"failing-listener" : { paths : [ watchRoot & "/failing" ], listener : "demo.models.watchers.FailingListener", errorThreshold : 5 },
+		// Event storm: recursive, no debounce
+		"chatty" : { paths : [ watchRoot & "/chatty" ], listener : "demo.models.watchers.ChattyListener", recursive : true, debounce : 0 }
+	};
+
 	function onApplicationStart() {
 		// In-memory Derby can survive across application restarts inside the same JVM,
 		// so guard every CREATE TABLE to keep onApplicationStart idempotent.
@@ -65,6 +93,10 @@ class {
 			agentsEnabled = getSystemSetting( "WITH_AI", "" ) == "1"
 		);
 		application.aiDemo.registerServers();
+		// Registered but never started: the watchers page starts it
+		watcherNew(
+			name = "stopped-watcher", paths = [ watchRoot & "/stopped" ], listener = "demo.models.watchers.StoppedListener", force = true
+		);
 		return true;
 	}
 

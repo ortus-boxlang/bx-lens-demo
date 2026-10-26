@@ -1,0 +1,101 @@
+<bx:script>
+	request.pageTitle = "File watchers";
+	root = getSystemSetting( "DEMO_WATCH_DIR", getTempDirectory() & "bxlens-demo-watched" );
+	log = new demo.models.watchers.WatcherLog();
+	stamp = dateTimeFormat( now(), "HHnnssSSS" );
+	// Actions: write or remove files in a watched folder, or change a watcher's lifecycle. Then redirect back so a refresh does not repeat it.
+	act = url.action ?: "";
+	if ( act == "drop" ) {
+		fileWrite( root & "/inbox/orders-#stamp#.csv", "id,customer,total#char( 10 )#1,Acme Freight,37.50#char( 10 )#2,Globex,75.00#char( 10 )#3,Initech,112.50" );
+	} else if ( act == "edit" ) {
+		// Three quick saves: the debounce on config-reload collapses them
+		for ( i = 1; i <= 3; i++ ) {
+			fileWrite( root & "/config/settings.json", '{ "revision": #i#, "saved": "#now()#" }' );
+			sleep( 100 );
+		}
+	} else if ( act == "delete" ) {
+		directoryList( root & "/inbox", false, "path" ).slice( 1, 1 ).each( ( f ) => fileDelete( f ) );
+	} else if ( act == "slow" ) {
+		for ( i = 1; i <= 4; i++ ) { fileWrite( root & "/slow/job-#stamp#-#i#.txt", "job #i#" ); }
+	} else if ( act == "fail" ) {
+		for ( i = 1; i <= 6; i++ ) { fileWrite( root & "/failing/upload-#stamp#-#i#.dat", "x" ); sleep( 150 ); }
+	} else if ( act == "burst" ) {
+		directoryCreate( root & "/chatty/sub", true, true );
+		for ( i = 1; i <= 200; i++ ) { fileWrite( root & "/chatty/#i % 2 ? 'sub/' : ''#burst-#stamp#-#i#.txt", "event #i#" ); }
+	} else if ( act == "global" ) {
+		fileWrite( root & "/global/runtime-#stamp#.properties", "mode=demo" );
+	} else if ( act == "stopped" ) {
+		fileWrite( root & "/stopped/note-#stamp#.txt", "nobody is listening until you start the watcher" );
+	} else if ( act == "start" && watcherExists( url.name ?: "" ) ) {
+		watcherStart( url.name );
+	} else if ( act == "stop" && watcherExists( url.name ?: "" ) ) {
+		watcherStop( url.name );
+	} else if ( act == "restart" && watcherExists( url.name ?: "" ) ) {
+		watcherRestart( url.name );
+	} else if ( act == "clear" ) {
+		log.clear();
+	}
+	if ( act.len() ) {
+		sleep( 400 );
+		location( url = "/watchers.bxm", addToken = false );
+	}
+	scenarios = [
+		{ action : "drop", name : "inbox", what : "Drop a CSV into the inbox. Struct listener: onCreate reads it." },
+		{ action : "delete", name : "inbox", what : "Delete the oldest inbox file. onDelete fires." },
+		{ action : "edit", name : "config-reload", what : "Save a settings file 3 times in 300 ms. The debounce collapses them into about one reload." },
+		{ action : "slow", name : "slow-listener", what : "Write 4 files. The listener takes 3 s each, so the events queue behind it." },
+		{ action : "fail", name : "failing-listener", what : "Write 6 files. The listener throws every time and the watcher stops itself after 5 errors in a row." },
+		{ action : "burst", name : "chatty", what : "Write 200 files into a folder and a subfolder. No debounce, so an event storm." },
+		{ action : "global", name : "global-config", what : "Write a file to the watcher defined in boxlang.json." },
+		{ action : "stopped", name : "stopped-watcher", what : "Write a file to a watcher that is registered but stopped. Nothing happens until you start it." }
+	];
+	watchers = watcherGetAll();
+	request.lookAt = [
+		"Console: look for the watchers of this app and the runtime: inbox, config-reload, slow-listener, failing-listener, chatty, stopped-watcher and global-config (from boxlang.json).",
+		"Failing: after the Fail button, failing-listener shows its errors and stops by itself (errorThreshold 5). Restart it here.",
+		"Slow: the listener thread stays busy for 12 s. Console > Threads.",
+		"Chatty: 200 events in a moment, with no debounce. Compare with config-reload, where three saves become about one.",
+		"Ask Lensy: which watchers are stopped or failing?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>File watchers</h1>
+<p>Directory watchers started with the app (<code>this.watchers</code> in <code>Application.bx</code>) and from <code>boxlang.json</code>. They watch folders under <code>#encodeForHTML( root )#</code>. The buttons write files there, then the listeners react.</p>
+
+<h2>Watchers</h2>
+<table>
+	<tr><th>Name</th><th>State</th><th>Settings</th><th>Errors in a row</th><th></th></tr>
+	<bx:loop collection="#watchers#" item="name">
+		<bx:script>w = watchers[ name ]; stats = w.getStats();</bx:script>
+		<tr>
+			<td><strong>#encodeForHTML( name )#</strong></td>
+			<td><span class="pill #w.isRunning() ? 'on' : ''#">#encodeForHTML( stats.state )#</span></td>
+			<td><small>recursive #stats.recursive#, debounce #stats.debounce#, throttle #stats.throttle#, errorThreshold #stats.errorThreshold#</small></td>
+			<td>#stats.consecutiveErrors#</td>
+			<td>
+				<a class="btn go" href="/watchers.bxm?action=start&name=#urlEncodedFormat( name )#">Start</a>
+				<a class="btn" href="/watchers.bxm?action=stop&name=#urlEncodedFormat( name )#">Stop</a>
+				<a class="btn" href="/watchers.bxm?action=restart&name=#urlEncodedFormat( name )#">Restart</a>
+			</td>
+		</tr>
+	</bx:loop>
+</table>
+
+<h2>Make something happen</h2>
+<table>
+	<tr><th>Watcher</th><th>What it does</th><th></th></tr>
+	<bx:loop array="#scenarios#" item="s">
+		<tr><td><code>#s.name#</code></td><td>#encodeForHTML( s.what )#</td><td><a class="btn go" href="/watchers.bxm?action=#s.action#">Run</a></td></tr>
+	</bx:loop>
+</table>
+
+<h2>Last events <a class="btn" href="/watchers.bxm?action=clear">Clear</a> <a class="btn" href="/watchers.bxm">Refresh</a></h2>
+<table>
+	<tr><th>Time</th><th>Watcher</th><th>Event</th><th>File</th><th>Note</th></tr>
+	<bx:loop array="#log.recent( 40 )#" item="e">
+		<tr><td>#timeFormat( e.time, 'HH:mm:ss' )#</td><td>#encodeForHTML( e.watcher )#</td><td>#encodeForHTML( e.kind )#</td><td>#encodeForHTML( e.path )#</td><td>#encodeForHTML( e.note )#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

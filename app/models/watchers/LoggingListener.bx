@@ -1,0 +1,21 @@
+/**
+ * Base class of the demo's watcher listeners. Records every event, then calls handle() so a subclass decides what the listener does with it.
+ */
+class {
+
+	variables.watcherName = "watcher";
+
+	function onEvent( required struct event ) {
+		new WatcherLog().add( variables.watcherName, event.kind, event.relativePath ?: "" );
+		handle( event );
+	}
+
+	function onError( required any error ) {
+		new WatcherLog().add( variables.watcherName, "error", "", error.message ?: error.toString() );
+	}
+
+	/** Override in a subclass */
+	function handle( required struct event ) {
+	}
+
+}

@@ -35,6 +35,7 @@
 	<a href="#event.buildLink( 'perf.slowView' )#">Slow views</a>
 	<a href="#event.buildLink( 'errors.index' )#">Errors</a>
 	<a href="#event.buildLink( 'schedulers.index' )#">Schedulers</a>
+	<a href="#event.buildLink( 'watchers.index' )#">Watchers</a>
 	<a href="/cbApp/public/index.bxm/reports/main/index">Reports</a>
 	<a href="/cbApp/public/index.bxm/inventory/stock/index">Inventory</a>
 	<a href="/cbApp/public/index.bxm/audit/log/index">Audit</a>

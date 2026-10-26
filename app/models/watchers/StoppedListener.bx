@@ -1,0 +1,8 @@
+/**
+ * Listener of the watcher that is registered but never started. Start it from the watchers page.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "stopped-watcher";
+
+}

@@ -72,6 +72,36 @@ class{
 	this.datasource = "cbdemo"
 
 	/**
+	 * --------------------------------------------------------------------------
+	 * File watchers
+	 * --------------------------------------------------------------------------
+	 * One for each state BxLens can show, plain classes in app/models/watchers. They watch folders under DEMO_WATCH_DIR/cbapp
+	 * (start.sh sets DEMO_WATCH_DIR). The watchers page writes files there.
+	 */
+	watchRoot = getSystemSetting( "DEMO_WATCH_DIR", getTempDirectory() & "bxlens-demo-watched" ) & "/cbapp";
+	[ "orders-inbox", "settings", "slow", "failing", "chatty", "stopped" ].each( ( d ) => directoryCreate( watchRoot & "/" & d, true, true ) );
+	this.watchers = {
+		// Healthy: a struct listener that ingests dropped order files
+		"orders-inbox" : {
+			paths    : [ watchRoot & "/orders-inbox" ],
+			debounce : 100,
+			listener : {
+				onCreate : ( event ) => new app.models.watchers.WatcherLog().add( "orders-inbox", "created", event.relativePath, fileRead( event.path ).listLen( char( 10 ) ) & " rows ingested" ),
+				onModify : ( event ) => new app.models.watchers.WatcherLog().add( "orders-inbox", "modified", event.relativePath, "re-read" ),
+				onDelete : ( event ) => new app.models.watchers.WatcherLog().add( "orders-inbox", "deleted", event.relativePath, "removed from the index" )
+			}
+		},
+		// Debounced: one reload for a burst of saves
+		"settings-reload" : { paths : [ watchRoot & "/settings" ], listener : "app.models.watchers.ConfigReloadListener", debounce : 1000, atomicWrites : true },
+		// Slow listener: 3 seconds per event
+		"slow-importer" : { paths : [ watchRoot & "/slow" ], listener : "app.models.watchers.SlowListener" },
+		// Failing listener: stops itself after 5 errors in a row
+		"failing-importer" : { paths : [ watchRoot & "/failing" ], listener : "app.models.watchers.FailingListener", errorThreshold : 5 },
+		// Event storm: recursive, no debounce
+		"chatty-assets" : { paths : [ watchRoot & "/chatty" ], listener : "app.models.watchers.ChattyListener", recursive : true, debounce : 0 }
+	};
+
+	/**
 	 * Fires when the application starts
 	 */
 	public boolean function onApplicationStart() {
@@ -85,6 +115,8 @@ class{
 			COLDBOX_WEB_MAPPING
 		)
 		application.cbBootstrap.loadColdbox()
+		// Registered but never started: the watchers page starts it
+		watcherNew( name = "cb-stopped-watcher", paths = [ watchRoot & "/stopped" ], listener = "app.models.watchers.StoppedListener", force = true );
 		return true
 	}
 

@@ -55,5 +55,14 @@
 		"demo-pool": { "type": "fixed", "threads": 2, "description": "Small pool: the executor scenario saturates it" },
 		"demo-workers": { "type": "fixed", "threads": 8, "description": "Healthy pool for comparison" },
 		"demo-background": { "type": "cached", "description": "Cached pool: thread count grows with bursts" }
+	},
+	"watcher": {
+		"definitions": {
+			"global-config": {
+				"paths": [ "@WATCH_DIR@/global" ],
+				"listener": "demo.models.watchers.GlobalListener",
+				"debounce": 250
+			}
+		}
 	}
 }
