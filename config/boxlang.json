@@ -27,7 +27,7 @@
 					"baseUrl": "@OLLAMA_URL@"
 				},
 				"collect": { "level": "full" },
-				"store": { "flushSeconds": 5 },
+				"store": { "flushSeconds": 5, "dir": "@STORE_DIR@", "instanceFolder": "web-a" },
 				"ui": { "startOpen": false, "autoOpenOnException": true },
 				"thresholds": { "slowQueryMs": 15, "slowRequestMs": 3000 },
 				"request": { "maxMinutes": 1 },

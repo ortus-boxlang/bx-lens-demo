@@ -51,6 +51,17 @@ class {
 			} )
 			.every( 10, "seconds" );
 
+		// Fleet: writes the saved numbers of two mock servers (web-b and web-c) into the shared store folder, so the server selector shows three servers
+		scheduler.task( "fleet-mock" )
+			.call( () => {
+				var dir = getSystemSetting( "DEMO_STORE_DIR", "" );
+				if ( dir.len() ) {
+					new demo.models.fleet.FleetMock( dir ).tick();
+				}
+				return "mock servers written";
+			} )
+			.every( 30, "seconds" );
+
 		// Paused: defined but disabled, so it never runs. With BoxLang+ you can resume it from the console
 		scheduler.task( "warm-cache" )
 			.call( () => {

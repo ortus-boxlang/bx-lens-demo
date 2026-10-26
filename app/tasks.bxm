@@ -17,6 +17,7 @@
 	<tr><td>sync-prices</td><td>20 s</td><td>Failing. Throws an IntegrationError every run.</td></tr>
 	<tr><td>nightly-report</td><td>30 s</td><td>Slow. Takes 12 seconds.</td></tr>
 	<tr><td>export-orders</td><td>10 s</td><td>Overlapping. Takes 25 seconds, longer than its interval.</td></tr>
+	<tr><td>fleet-mock</td><td>30 s</td><td>Healthy. Writes the saved numbers of the mock servers web-b and web-c (see the <a href="/fleet.bxm">Fleet</a> page).</td></tr>
 	<tr><td>warm-cache</td><td>1 min</td><td>Paused. Never runs.</td></tr>
 </table>
 </bx:output>

@@ -31,7 +31,7 @@
 	<a href="/caught-exception.bxm">Exceptions</a><a href="/http.bxm">HTTP</a><a href="/cache.bxm">Cache</a>
 	<a href="/concurrency/deadlock.bxm">Deadlock</a><a href="/concurrency/executors.bxm">Executors</a>
 	<a href="/runtime/pool-exhaustion.bxm">Pool</a><a href="/runtime/memory-leak.bxm">Memory</a>
-	<a href="/orm.bxm">ORM</a><a href="/mail.bxm">Mail</a><a href="/traffic.bxm">Traffic</a><a href="/watchers.bxm">Watchers</a><a href="/cbApp/">ColdBox</a><a href="/legacy/index.cfm">CFML</a>
+	<a href="/orm.bxm">ORM</a><a href="/mail.bxm">Mail</a><a href="/traffic.bxm">Traffic</a><a href="/watchers.bxm">Watchers</a><a href="/fleet.bxm">Fleet</a><a href="/cbApp/">ColdBox</a><a href="/legacy/index.cfm">CFML</a>
 	<a class="console" href="/~bxlens/index.bxm">BxLens console</a>
 </nav>
 <main>

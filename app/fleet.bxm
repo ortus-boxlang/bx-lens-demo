@@ -1,0 +1,52 @@
+<bx:script>
+	request.pageTitle = "Fleet";
+	storeDir = getSystemSetting( "DEMO_STORE_DIR", "" );
+	fleet = storeDir.len() ? new demo.models.fleet.FleetMock( storeDir ) : "";
+	// Change the mode of a mock server, then redirect so a refresh does not repeat it
+	if ( isObject( fleet ) && ( url.action ?: "" ) == "mode" ) {
+		fleet.setMode( url.server ?: "", url.mode ?: "" );
+		location( url = "/fleet.bxm", addToken = false );
+	}
+	if ( isObject( fleet ) && ( url.action ?: "" ) == "tick" ) {
+		fleet.tick();
+		location( url = "/fleet.bxm", addToken = false );
+	}
+	modes = [ "healthy", "degraded", "critical", "silent" ];
+	request.lookAt = [
+		"Console header > Server selector (BoxLang+): web-a (live), web-b and web-c (saved). Pick one to read its saved Reports, Errors, HTTP, System, Executors, Tasks, Datasources and Caches.",
+		"Console > Overview > Servers table: heap, CPU, threads, fullest volume, failing tasks, connections waited for and deadlocks for the three servers. web-c starts degraded.",
+		"Pick All servers: Reports and Errors add the three up. The same error (shared01) appears once with all three servers listed.",
+		"Silent: a server stops writing. After two minutes the selector shows it as behind.",
+		"Ask Lensy: which server is in the worst shape?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Fleet</h1>
+<p>BxLens never connects to another server. Every server saves its numbers in its own folder of a shared store folder, and the console reads those folders.
+Here <strong>web-a</strong> is this server. <strong>web-b</strong> and <strong>web-c</strong> do not exist: the <code>fleet-mock</code> task of the demo scheduler writes their folders every 30 seconds in the same format, so the console shows three servers.</p>
+<bx:if !isObject( fleet )>
+	<p class="warn">The store folder is not set. Start the demo with <code>./start.sh</code>, which sets <code>DEMO_STORE_DIR</code> and the <code>store</code> settings. The server selector needs BoxLang+.</p>
+<bx:else>
+<p>Store folder: <code>#encodeForHTML( storeDir )#</code> <a class="btn" href="/fleet.bxm?action=tick">Write now</a></p>
+<table>
+	<tr><th>Server</th><th>What it is</th><th>Mode</th><th>Last wrote</th><th></th></tr>
+	<tr><td><strong>web-a</strong></td><td>This server. Its numbers are live.</td><td>live</td><td>now</td><td></td></tr>
+	<bx:loop array="#fleet.serverNames()#" item="n">
+		<bx:script>seen = fleet.lastSeen( n ); mode = fleet.modeOf( n );</bx:script>
+		<tr>
+			<td><strong>#n#</strong></td>
+			<td>Mock server</td>
+			<td><span class="pill #mode == 'healthy' ? '' : 'on'#">#mode#</span></td>
+			<td>#seen > 0 ? dateTimeFormat( createObject( "java", "java.util.Date" ).init( javacast( "long", seen ) ), "HH:nn:ss" ) : "never"#</td>
+			<td>
+				<bx:loop array="#modes#" item="m"><a class="btn #m == mode ? 'go' : ''#" href="/fleet.bxm?action=mode&server=#n#&mode=#m#">#m#</a> </bx:loop>
+			</td>
+		</tr>
+	</bx:loop>
+</table>
+<p><small>Healthy: low heap and CPU, few errors. Degraded: heap above 90%, a deadlock, failing tasks, slow p95, a pool with waiters. Critical: all of that, worse.
+Silent: the server stops writing. BxLens marks a server as <em>behind</em> after two minutes without a write and as <em>stale</em> after a day.</small></p>
+</bx:if>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

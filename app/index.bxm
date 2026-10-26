@@ -36,6 +36,7 @@
 		{ group : "Runtime and ops", page : "/errors/index.bxm", title : "Error catalog", look : "Console > Errors: grouped by cause, counts, samples, redaction." },
 		{ group : "Runtime and ops", page : "/logging.bxm", title : "Logging", look : "Console > Logs: every level, live tail." },
 		{ group : "Runtime and ops", page : "/tasks.bxm", title : "Scheduled tasks", look : "Console > Tasks: healthy, failing, slow, overlapping, paused." },
+		{ group : "Runtime and ops", page : "/fleet.bxm", title : "Fleet of three servers", look : "BoxLang+: the server selector and the Overview Servers table list web-a (this one) and two mock servers, web-b (healthy) and web-c (degraded). Reports, Errors and HTTP add them up under All servers." },
 		{ group : "Runtime and ops", page : "/watchers.bxm", title : "File watchers", look : "Console: seven watchers. Healthy, debounced, slow, failing (stops itself), chatty (event storm), stopped, and one from boxlang.json." },
 		{ group : "Runtime and ops", page : "/traffic.bxm", title : "Traffic generator", look : "Console > Overview, Reports (p95, p99, status codes, minute series)." },
 		{ group : "Integrations (opt-in modules)", page : "/orm.bxm?save=1", title : "ORM", look : "Bar > Queries: Hibernate SQL with an ORM label. Console > ORM (BoxLang+): flushes, failures, statistics." },

@@ -1,0 +1,277 @@
+{
+	"at": @NOW@,
+	"server": {
+		"id": "web-d",
+		"host": "web-d",
+		"ip": "10.0.0.4"
+	},
+	"system": {
+		"ram": {
+			"total": 16000000000,
+			"free": 4000000000,
+			"swapTotal": 0,
+			"swapFree": 0,
+			"committedVirtual": 1
+		},
+		"cpu": {
+			"cores": 8,
+			"loadAverage": 1.5,
+			"os": "Linux 6",
+			"arch": "amd64",
+			"processCpu": 42,
+			"systemCpu": 50,
+			"processCpuTimeMs": 1000
+		},
+		"memory": {
+			"heap": {
+				"used": 950,
+				"committed": 1000,
+				"max": 1000
+			},
+			"nonHeap": {
+				"used": 10,
+				"committed": 20,
+				"max": -1
+			},
+			"pools": []
+		},
+		"gc": [
+			{
+				"name": "G1",
+				"count": 3,
+				"timeMs": 30
+			}
+		],
+		"threads": {
+			"live": 77,
+			"daemon": 10,
+			"peak": 80,
+			"started": 200,
+			"deadlocked": 1
+		},
+		"classes": {
+			"loaded": 1000,
+			"total": 1000,
+			"unloaded": 0
+		},
+		"runtime": {
+			"vm": "OpenJDK 21",
+			"vendor": "x",
+			"java": "21",
+			"pid": 4,
+			"uptimeMs": 86400000,
+			"startedAt": "2026-01-01T00:00:00Z",
+			"flags": [],
+			"properties": {}
+		},
+		"disks": [],
+		"storage": {
+			"volumes": [
+				{
+					"mount": "/data",
+					"device": "/dev/sdb",
+					"type": "ext4",
+					"total": 100000000000,
+					"used": 94000000000,
+					"free": 6000000000,
+					"usedPct": 94,
+					"readOnly": false,
+					"network": false,
+					"status": "crit"
+				}
+			],
+			"folders": [
+				{
+					"name": "Lens store",
+					"path": "/data/lens",
+					"purpose": "Saved data",
+					"usedBy": "Lens",
+					"lensWrites": true,
+					"exists": true,
+					"writable": true,
+					"readOnly": false,
+					"volume": "/data",
+					"volumeUsedPct": 94,
+					"volumeFree": 6000000000,
+					"problem": "The volume is nearly full and Lens writes here"
+				}
+			],
+			"warnPct": 80,
+			"critPct": 90,
+			"at": @NOW@
+		},
+		"lens": {},
+		"at": @NOW@
+	},
+	"executors": {
+		"executors": [],
+		"counts": {}
+	},
+	"tasks": {
+		"schedulers": [],
+		"total": 4,
+		"failing": 2,
+		"paused": 0,
+		"tasksFile": "",
+		"reloadOnChange": false,
+		"actions": true
+	},
+	"datasources": {
+		"datasources": [
+			{
+				"id": "orders",
+				"name": "orders",
+				"pool": {
+					"active": 9,
+					"idle": 0,
+					"total": 9,
+					"pending": 3,
+					"max": 10,
+					"min": 1,
+					"utilization": 90
+				}
+			}
+		]
+	},
+	"caches": {
+		"caches": []
+	},
+	"requests": [
+		{
+			"id": "r1",
+			"method": "GET",
+			"path": "/checkout",
+			"status": 500,
+			"ms": 1200,
+			"at": @NOW_5000@
+		}
+	],
+	"inflight": [],
+	"queries": {
+		"statements": [],
+		"marker": "web-d-queries"
+	},
+	"orm": {
+		"integration": {
+			"status": "on",
+			"installed": true
+		},
+		"totals": {
+			"queries": 77,
+			"flushes": 3,
+			"errors": 0,
+			"unattributed": 0,
+			"datasources": [],
+			"failures": []
+		},
+		"apps": [],
+		"supported": true,
+		"serviceFound": true,
+		"offMessage": ""
+	},
+	"mail": {
+		"overview1h": {
+			"range": "1h",
+			"tiles": {
+				"built": 12,
+				"sent": 9,
+				"failed": 3,
+				"spooled": 0,
+				"bounced": 0,
+				"failovers": 1,
+				"successPct": 75,
+				"p50": 10,
+				"p95": 80,
+				"avgMs": 20
+			},
+			"series": [],
+			"queue": {
+				"available": true,
+				"unsent": 0,
+				"bounced": 0,
+				"open": 0,
+				"oldestMs": 0,
+				"lastRun": null
+			},
+			"attention": [],
+			"servers": [
+				{
+					"name": "smtp.b:587",
+					"attempts": 12,
+					"errors": 3,
+					"errorPct": 25,
+					"p50": 10,
+					"p95": 80
+				}
+			]
+		},
+		"overview24h": {
+			"range": "24h",
+			"tiles": {
+				"built": 12,
+				"sent": 9,
+				"failed": 3,
+				"spooled": 0,
+				"bounced": 0,
+				"failovers": 1,
+				"successPct": 75,
+				"p50": 10,
+				"p95": 80,
+				"avgMs": 20
+			},
+			"series": [],
+			"queue": {
+				"available": true,
+				"unsent": 0,
+				"bounced": 0,
+				"open": 0,
+				"oldestMs": 0,
+				"lastRun": null
+			},
+			"attention": [],
+			"servers": []
+		},
+		"messages": {
+			"messages": [
+				{
+					"id": "m1",
+					"at": @NOW_3000@,
+					"state": "sent",
+					"spooled": false,
+					"from": "shop@b",
+					"to": [
+						"ada@b"
+					],
+					"cc": [],
+					"bcc": [],
+					"subject": "From web-d",
+					"size": 10,
+					"attachments": 0,
+					"server": "smtp.b:587",
+					"error": "",
+					"ms": 10
+				}
+			],
+			"kept": 200,
+			"capture": "meta"
+		},
+		"servers1h": {
+			"servers": []
+		},
+		"servers24h": {
+			"servers": []
+		},
+		"queue": {
+			"available": true,
+			"unsent": 0,
+			"bounced": 0,
+			"unsentList": [],
+			"bouncedList": []
+		},
+		"settings": {
+			"settings": {},
+			"servers": [],
+			"notes": []
+		}
+	}
+}
