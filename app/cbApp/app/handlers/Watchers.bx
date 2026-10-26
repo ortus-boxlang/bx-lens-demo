@@ -1,0 +1,81 @@
+/**
+ * File watchers: their state, buttons that write files into the watched folders, and the events the listeners saw.
+ */
+class extends="coldbox.system.EventHandler" {
+
+	function index( event, rc, prc ) {
+		prc.root = watchRoot();
+		prc.log = new app.models.watchers.WatcherLog();
+		prc.watchers = watcherGetAll();
+		prc.scenarios = [
+			{ action : "drop", name : "orders-inbox", what : "Drop a CSV into the inbox. Struct listener: onCreate reads it." },
+			{ action : "delete", name : "orders-inbox", what : "Delete the oldest inbox file. onDelete fires." },
+			{ action : "edit", name : "settings-reload", what : "Save a settings file 3 times in 300 ms. The debounce collapses them into about one reload." },
+			{ action : "slow", name : "slow-importer", what : "Write 4 files. The listener takes 3 s each, so the events queue behind it." },
+			{ action : "fail", name : "failing-importer", what : "Write 6 files. The listener throws every time and the watcher stops itself after 5 errors in a row." },
+			{ action : "burst", name : "chatty-assets", what : "Write 200 files into a folder and a subfolder. No debounce, so an event storm." },
+			{ action : "stopped", name : "cb-stopped-watcher", what : "Write a file to a watcher that is registered but stopped. Nothing happens until you start it." }
+		];
+		prc.lookAt = [
+			"Console: the watchers of this app: orders-inbox, settings-reload, slow-importer, failing-importer, chatty-assets and cb-stopped-watcher.",
+			"Failing: after the Fail button, failing-importer shows its errors and stops by itself (errorThreshold 5). Restart it here.",
+			"Slow: the listener thread stays busy for 12 s. Console > Threads.",
+			"Chatty: 200 events in a moment, with no debounce. Compare with settings-reload, where three saves become about one.",
+			"Ask Lensy: which watchers are stopped or failing?"
+		];
+		event.setView( "watchers/index" );
+	}
+
+	/** /watchers/act?do=drop|delete|edit|slow|fail|burst|stopped|clear, or ?do=start|stop|restart&name=... */
+	function act( event, rc, prc ) {
+		var root  = watchRoot();
+		var stamp = dateTimeFormat( now(), "HHnnssSSS" );
+		var name  = rc.name ?: "";
+		switch ( rc.do ?: "" ) {
+			case "drop":
+				fileWrite( root & "/orders-inbox/orders-#stamp#.csv", "id,customer,total#char( 10 )#1,Acme Freight,37.50#char( 10 )#2,Globex,75.00#char( 10 )#3,Initech,112.50" );
+				break;
+			case "delete":
+				directoryList( root & "/orders-inbox", false, "path" ).slice( 1, 1 ).each( ( f ) => fileDelete( f ) );
+				break;
+			case "edit":
+				for ( var i = 1; i <= 3; i++ ) {
+					fileWrite( root & "/settings/settings.json", '{ "revision": #i# }' );
+					sleep( 100 );
+				}
+				break;
+			case "slow":
+				for ( var i = 1; i <= 4; i++ ) { fileWrite( root & "/slow/job-#stamp#-#i#.txt", "job #i#" ); }
+				break;
+			case "fail":
+				for ( var i = 1; i <= 6; i++ ) { fileWrite( root & "/failing/upload-#stamp#-#i#.dat", "x" ); sleep( 150 ); }
+				break;
+			case "burst":
+				directoryCreate( root & "/chatty/sub", true, true );
+				for ( var i = 1; i <= 200; i++ ) { fileWrite( root & "/chatty/" & ( i % 2 ? "sub/" : "" ) & "burst-#stamp#-#i#.txt", "event #i#" ); }
+				break;
+			case "stopped":
+				fileWrite( root & "/stopped/note-#stamp#.txt", "nobody is listening until you start the watcher" );
+				break;
+			case "start":
+				if ( watcherExists( name ) ) { watcherStart( name ); }
+				break;
+			case "stop":
+				if ( watcherExists( name ) ) { watcherStop( name ); }
+				break;
+			case "restart":
+				if ( watcherExists( name ) ) { watcherRestart( name ); }
+				break;
+			case "clear":
+				new app.models.watchers.WatcherLog().clear();
+				break;
+		}
+		sleep( 400 );
+		relocate( "watchers.index" );
+	}
+
+	private string function watchRoot() {
+		return getSystemSetting( "DEMO_WATCH_DIR", getTempDirectory() & "bxlens-demo-watched" ) & "/cbapp";
+	}
+
+}

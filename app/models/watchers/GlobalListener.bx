@@ -1,0 +1,8 @@
+/**
+ * Listener of the watcher defined in boxlang.json (the "watcher" section), not in Application.bx, so it is a runtime watcher.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "global-config";
+
+}

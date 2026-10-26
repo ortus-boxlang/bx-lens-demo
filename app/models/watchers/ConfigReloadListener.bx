@@ -1,0 +1,14 @@
+/**
+ * Debounced reload: an editor saving a file fires several events, the watcher collapses them (debounce 1000 ms, atomicWrites) and this runs once.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "config-reload";
+
+	function handle( required struct event ) {
+		if ( event.kind != "deleted" ) {
+			new WatcherLog().add( variables.watcherName, "reload", event.relativePath, "settings reloaded" );
+		}
+	}
+
+}

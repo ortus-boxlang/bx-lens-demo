@@ -1,0 +1,41 @@
+<bx:output>
+<h1>File watchers</h1>
+<p>Directory watchers started with the app (<code>this.watchers</code> in <code>public/Application.bx</code>). They watch folders under <code>#encodeForHTML( prc.root )#</code>. The buttons write files there, then the listeners react.</p>
+
+<h2>Watchers</h2>
+<table>
+	<tr><th>Name</th><th>State</th><th>Settings</th><th>Errors in a row</th><th></th></tr>
+	<bx:loop collection="#prc.watchers#" item="name">
+		<bx:script>w = prc.watchers[ name ]; stats = w.getStats();</bx:script>
+		<bx:if name contains "bxLensDemoColdBox:" || name == "cb-stopped-watcher">
+		<tr>
+			<td><strong>#encodeForHTML( name )#</strong></td>
+			<td><span class="pill #w.isRunning() ? 'ok' : 'err'#">#encodeForHTML( stats.state )#</span></td>
+			<td><small>recursive #stats.recursive#, debounce #stats.debounce#, throttle #stats.throttle#, errorThreshold #stats.errorThreshold#</small></td>
+			<td>#stats.consecutiveErrors#</td>
+			<td>
+				<a class="btn" href="#event.buildLink( linkTo = 'watchers.act', queryString = 'do=start&name=' & urlEncodedFormat( name ) )#">Start</a>
+				<a class="btn" href="#event.buildLink( linkTo = 'watchers.act', queryString = 'do=stop&name=' & urlEncodedFormat( name ) )#">Stop</a>
+				<a class="btn" href="#event.buildLink( linkTo = 'watchers.act', queryString = 'do=restart&name=' & urlEncodedFormat( name ) )#">Restart</a>
+			</td>
+		</tr>
+		</bx:if>
+	</bx:loop>
+</table>
+
+<h2>Make something happen</h2>
+<table>
+	<tr><th>Watcher</th><th>What it does</th><th></th></tr>
+	<bx:loop array="#prc.scenarios#" item="s">
+		<tr><td><code>#s.name#</code></td><td>#encodeForHTML( s.what )#</td><td><a class="btn" href="#event.buildLink( linkTo = 'watchers.act', queryString = 'do=' & s.action )#">Run</a></td></tr>
+	</bx:loop>
+</table>
+
+<h2>Last events <a class="btn" href="#event.buildLink( linkTo = 'watchers.act', queryString = 'do=clear' )#">Clear</a> <a class="btn" href="#event.buildLink( 'watchers.index' )#">Refresh</a></h2>
+<table>
+	<tr><th>Time</th><th>Watcher</th><th>Event</th><th>File</th><th>Note</th></tr>
+	<bx:loop array="#prc.log.recent( 40 )#" item="e">
+		<tr><td>#timeFormat( e.time, 'HH:mm:ss' )#</td><td>#encodeForHTML( e.watcher )#</td><td>#encodeForHTML( e.kind )#</td><td>#encodeForHTML( e.path )#</td><td>#encodeForHTML( e.note )#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>

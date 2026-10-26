@@ -1,0 +1,8 @@
+/**
+ * Event storm: no debounce and recursive. The burst button writes 200 files and this listener sees every one of them.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "chatty-assets";
+
+}

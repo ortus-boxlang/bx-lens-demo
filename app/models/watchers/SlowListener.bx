@@ -1,0 +1,13 @@
+/**
+ * Slow listener: takes 3 seconds per event, so a burst of files queues up behind it and the watcher thread stays busy.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "slow-listener";
+
+	function handle( required struct event ) {
+		sleep( 3000 );
+		new WatcherLog().add( variables.watcherName, "done", event.relativePath, "processed after 3 s" );
+	}
+
+}

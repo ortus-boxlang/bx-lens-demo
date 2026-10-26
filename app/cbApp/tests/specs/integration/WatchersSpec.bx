@@ -1,0 +1,57 @@
+/**
+ * The watcher listeners react to files, and the watchers page renders. The watchers themselves belong to the running app, so the specs register their own.
+ */
+class extends="coldbox.system.testing.BaseTestCase" appMapping="/app" {
+
+	function run() {
+		describe( "File watchers", () => {
+
+			beforeEach( ( currentSpec ) => {
+				setup();
+				variables.dir = getTempDirectory() & "bxlens-spec-watch-" & createUUID();
+				directoryCreate( variables.dir, true, true );
+				new app.models.watchers.WatcherLog().clear();
+			} );
+
+			afterEach( ( currentSpec ) => {
+				watcherShutdown( "spec-watch", true );
+				directoryDelete( variables.dir, true );
+			} );
+
+			// Waits up to 5 s for the listener thread
+			var waitFor = ( check ) => {
+				for ( var i = 1; i <= 50 && !check(); i++ ) { sleep( 100 ); }
+				return check();
+			};
+
+			it( "records the events of a watched folder", () => {
+				watcherNew( name = "spec-watch", paths = [ variables.dir ], listener = "app.models.watchers.ChattyListener", debounce = 0, force = true ).start();
+				fileWrite( variables.dir & "/a.txt", "x" );
+				var log = new app.models.watchers.WatcherLog();
+				expect( waitFor( () => log.recent().len() > 0 ) ).toBeTrue();
+				expect( log.recent()[ 1 ].watcher ).toBe( "chatty-assets" );
+			} );
+
+			it( "stops a watcher whose listener keeps failing", () => {
+				var w = watcherNew( name = "spec-watch", paths = [ variables.dir ], listener = "app.models.watchers.FailingListener", errorThreshold = 3, force = true ).start();
+				for ( var i = 1; i <= 4; i++ ) { fileWrite( variables.dir & "/f#i#.dat", "x" ); sleep( 150 ); }
+				expect( waitFor( () => w.isStopped() ) ).toBeTrue();
+			} );
+
+			it( "does not run a watcher that was never started", () => {
+				watcherNew( name = "spec-watch", paths = [ variables.dir ], listener = "app.models.watchers.StoppedListener", force = true );
+				fileWrite( variables.dir & "/a.txt", "x" );
+				sleep( 600 );
+				expect( new app.models.watchers.WatcherLog().recent() ).toBeEmpty();
+			} );
+
+			it( "renders the watchers page", () => {
+				var e = get( "/watchers/index" );
+				expect( e.getStatusCode() ).toBe( 200 );
+				expect( e.getRenderedContent() ).toInclude( "File watchers" );
+			} );
+
+		} );
+	}
+
+}

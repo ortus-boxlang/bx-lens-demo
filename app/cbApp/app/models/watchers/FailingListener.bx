@@ -1,0 +1,12 @@
+/**
+ * Failing listener: throws on every event. With errorThreshold 5 the watcher stops itself after five failures in a row.
+ */
+class extends="LoggingListener" {
+
+	variables.watcherName = "failing-importer";
+
+	function handle( required struct event ) {
+		throw( type = "WatcherDemoError", message = "Cannot import #event.relativePath#: unsupported file format" );
+	}
+
+}

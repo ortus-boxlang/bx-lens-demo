@@ -93,6 +93,9 @@ class singleton {
 			] ),
 			group( "Schedulers", "ColdBox schedulers: the app and each module register their own.", [
 				item( "All schedulers", "/schedulers", 200, "Every scheduler with its tasks, runs and failures. Run a task now from here.", "Console > Tasks and Executors." )
+			] ),
+			group( "File watchers", "Directory watchers with healthy, debounced, slow, failing, chatty and stopped behavior.", [
+				item( "All watchers", "/watchers", 200, "Every watcher with its state, buttons that write files into the watched folders, and the events the listeners saw.", "Console: watchers, the failing one stopping itself, the slow listener's busy thread." )
 			] )
 		];
 	}

@@ -1,0 +1,37 @@
+/**
+ * In-memory log of the watcher events the demo has seen, kept in the server scope so listeners (which run on the watcher threads)
+ * and the watchers page share it.
+ */
+class {
+
+	function init() {
+		ensure();
+		return this;
+	}
+
+	function add( required string watcher, required string kind, string path = "", string note = "" ) {
+		ensure();
+		var events = server.cbDemoWatcherLog;
+		events.addFirst( { time : now(), watcher : arguments.watcher, kind : arguments.kind, path : arguments.path, note : arguments.note } );
+		while ( events.size() > 300 ) {
+			events.pollLast();
+		}
+	}
+
+	array function recent( numeric max = 50 ) {
+		ensure();
+		return server.cbDemoWatcherLog.toArray().slice( 1, min( arguments.max, server.cbDemoWatcherLog.size() ) );
+	}
+
+	function clear() {
+		ensure();
+		server.cbDemoWatcherLog.clear();
+	}
+
+	private function ensure() {
+		if ( !server.keyExists( "cbDemoWatcherLog" ) ) {
+			server.cbDemoWatcherLog = createObject( "java", "java.util.concurrent.ConcurrentLinkedDeque" ).init();
+		}
+	}
+
+}
