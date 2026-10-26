@@ -145,6 +145,7 @@ Pages are listed with how to trigger them and what to look for. Every page also 
 | `/errors/index.bxm` | Nine error types, caught (200) or uncaught (500). `app` changes its message each time and still groups as one cause. `secret` proves redaction |
 | `/logging.bxm` | One line at every level in `application.log` and `demo.log`, and a flood option for the live tail |
 | `/tasks.bxm` | The `demoScheduler`: `refresh-stats` healthy, `sync-prices` failing, `nightly-report` slow, `export-orders` overlapping, `warm-cache` paused, plus `ai-mcp-heartbeat`. The heartbeat calls tools on two local MCP servers every 15 seconds and intentionally fails every seventh cycle; with `WITH_AI=1`, it also runs one of three Ollama-backed agents every fourth cycle. Tasks start with the first request to the app |
+| `/fleet.bxm` | Three servers for the console's server selector (BoxLang+). `web-a` is this server. `web-b` and `web-c` are mocks: the `fleet-mock` task of the demo scheduler writes their folders (`instance.json`, `health.json`, `reports.json`, `errors.json`, HTTP rollup) into the shared store folder (`.run/lens-data`, set by `start.sh`) every 30 seconds, in the formats BxLens saves. `web-b` starts healthy and `web-c` degraded (heap above 90%, a deadlock, failing tasks, slow p95). The page switches a mock between healthy, degraded, critical and silent (it stops writing, so it turns *behind* after two minutes). Console: Server selector, Overview Servers table, and All servers on Reports, Errors and HTTP |
 | `/watchers.bxm` | Seven file watchers started with the app (`this.watchers`) and from `boxlang.json`: `inbox` healthy (struct listener), `config-reload` (debounce 1000, three saves become one reload), `slow-listener` (3 s per event), `failing-listener` (throws, stops itself after 5 errors), `chatty` (recursive, no debounce, 200 file burst), `stopped-watcher` (registered, never started) and `global-config` (defined in `boxlang.json`). Buttons write files into the watched folders under `.run/watched` and start, stop or restart a watcher; the last events the listeners saw are listed. Listeners are classes in `app/models/watchers` |
 | `/traffic.bxm` | A browser side generator with a weighted mix of pages, 404s and 500s |
 
@@ -231,6 +232,7 @@ app/                    the web root
   models/Scenarios.bx   the stateful scenarios and their reset
   schedulers/           DemoScheduler.bx
   models/watchers/      listeners of the file watchers (watchers.bxm)
+  models/fleet/         FleetMock: writes the mock servers web-b and web-c (fleet.bxm)
   concurrency/ runtime/ errors/ spans/ legacy/ api/ mail/ ormmodels/ orm.bxm mail.bxm
 config/boxlang.json     BxLens settings, executors (demo-pool, demo-workers, demo-background)
 modules/demoLens/       a tiny module that adds a panel to every request

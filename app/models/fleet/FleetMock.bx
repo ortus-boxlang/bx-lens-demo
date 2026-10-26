@@ -1,0 +1,233 @@
+/**
+ * Two mock servers, web-b and web-c, for the BxLens server selector. BxLens never connects to another server: every server writes its own
+ * folder in a shared store folder (instance.json, health.json, reports.json, errors.json, http-rollup-DAY.json) and the console reads those.
+ * This class writes the folders of two servers that do not exist, in the same formats, so the console shows three servers.
+ * The scheduler calls tick() every 30 seconds. Numbers drift with the clock, so they move between refreshes.
+ */
+class {
+
+	variables.BOUNDS = [ 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000 ];
+
+	variables.SERVERS = {
+		"web-b" : { ip : "10.0.0.2", pid : 2101, rate : 40, hostSeed : 3 },
+		"web-c" : { ip : "10.0.0.3", pid : 2102, rate : 25, hostSeed : 5 }
+	};
+
+	/** How a server looks in each mode. lat is the share of requests in each latency bucket (12 bounds, 5 ms to 30 s). */
+	variables.PROFILES = {
+		"healthy"  : { heap : 42, cpu : 18, threads : 96,  deadlocks : 0, failing : 0, pending : 0, pool : 25, volume : 41, errPct : 0.6, slowPct : 0.2, fastMs : 35,  slowMs : 420,  lat : [ 0, 0, 10, 40, 30, 15, 4, 1, 0, 0, 0, 0 ] },
+		"degraded" : { heap : 91, cpu : 78, threads : 310, deadlocks : 1, failing : 2, pending : 3, pool : 92, volume : 88, errPct : 6,   slowPct : 5,   fastMs : 240, slowMs : 4200, lat : [ 0, 0, 0, 5, 15, 25, 25, 18, 8, 3, 1, 0 ] },
+		"critical" : { heap : 98, cpu : 96, threads : 520, deadlocks : 2, failing : 4, pending : 9, pool : 100, volume : 96, errPct : 18, slowPct : 14,  fastMs : 900, slowMs : 9800, lat : [ 0, 0, 0, 0, 2, 10, 20, 25, 20, 15, 6, 2 ] }
+	};
+
+	function init( required string storeDir ) {
+		variables.storeDir = arguments.storeDir;
+		if ( !server.keyExists( "demoFleet" ) ) {
+			server.demoFleet = { started : nowMs(), modes : { "web-b" : "healthy", "web-c" : "degraded" } };
+		}
+		return this;
+	}
+
+	array function serverNames() {
+		return variables.SERVERS.keyArray().sort( "text" );
+	}
+
+	string function modeOf( required string name ) {
+		return server.demoFleet.modes[ arguments.name ];
+	}
+
+	/** healthy, degraded, critical (numbers of that kind) or silent (stops writing, so the server turns "behind" after two minutes). */
+	function setMode( required string name, required string mode ) {
+		if ( variables.SERVERS.keyExists( arguments.name ) && ( variables.PROFILES.keyExists( arguments.mode ) || arguments.mode == "silent" ) ) {
+			server.demoFleet.modes[ arguments.name ] = arguments.mode;
+			tick();
+		}
+	}
+
+	/** When the server last wrote its heartbeat, as epoch milliseconds, or 0. */
+	numeric function lastSeen( required string name ) {
+		var f = variables.storeDir & "/" & arguments.name & "/instance.json";
+		return fileExists( f ) ? val( jsonDeserialize( fileRead( f ) ).lastSeen ?: 0 ) : 0;
+	}
+
+	/** Write what every mock server would have saved by now. */
+	function tick() {
+		for ( var name in variables.SERVERS ) {
+			var mode = modeOf( name );
+			if ( mode == "silent" ) {
+				continue;
+			}
+			var now = nowMs();
+			var dir = variables.storeDir & "/" & name;
+			directoryCreate( dir, true, true );
+			var p = variables.PROFILES[ mode ];
+			var s = variables.SERVERS[ name ];
+			save( dir, "instance.json", { "host" : name, "ip" : s.ip, "pid" : s.pid, "folder" : name, "lastSeen" : now, "format" : 1 } );
+			save( dir, "health.json", healthDoc( name, s, p, now ) );
+			save( dir, "reports.json", reportsDoc( name, s, p, now ) );
+			save( dir, "errors.json", errorsDoc( name, s, p, now ) );
+			writeHttp( dir, s, p, now );
+		}
+	}
+
+	// ---- documents ----
+
+	private struct function healthDoc( name, s, p, now ) {
+		var text = fileRead( getDirectoryFromPath( getCurrentTemplatePath() ) & "health-template.json" );
+		text = text.replace( "@NOW_5000@", ( now - 5000 ).toString(), "all" ).replace( "@NOW_3000@", ( now - 3000 ).toString(), "all" ).replace( "@NOW@", now.toString(), "all" );
+		text = text.replace( "web-d", name, "all" ).replace( "10.0.0.4", s.ip, "all" );
+		var doc  = jsonDeserialize( text );
+		var wob  = wobble( now, s.hostSeed, 3 );
+		var heapMax = 2147483648;
+		var heap = min( 99, max( 5, p.heap + wob ) );
+		doc.system.memory.heap = { "used" : round( heapMax * heap / 100 ), "committed" : heapMax, "max" : heapMax };
+		doc.system.cpu.processCpu = min( 100, max( 1, p.cpu + wob ) );
+		doc.system.cpu.systemCpu = min( 100, max( 1, p.cpu + wob + 6 ) );
+		doc.system.cpu.loadAverage = round( p.cpu / 12 * 10 ) / 10;
+		doc.system.threads.live = p.threads + wob;
+		doc.system.threads.deadlocked = p.deadlocks;
+		doc.system.runtime.pid = s.pid;
+		doc.system.runtime.uptimeMs = 86400000 * 9 + ( now - server.demoFleet.started );
+		var volume = doc.system.storage.volumes[ 1 ];
+		volume.usedPct = p.volume;
+		volume.used = round( volume.total * p.volume / 100 );
+		volume.free = volume.total - volume.used;
+		volume.status = p.volume >= 90 ? "crit" : ( p.volume >= 80 ? "warn" : "ok" );
+		var folder = doc.system.storage.folders[ 1 ];
+		folder.volumeUsedPct = p.volume;
+		folder.volumeFree = volume.free;
+		folder.problem = p.volume >= 90 ? "The volume is nearly full and Lens writes here" : "";
+		doc.tasks.total = 5;
+		doc.tasks.failing = p.failing;
+		var pool = doc.datasources.datasources[ 1 ].pool;
+		pool.active = round( pool.max * p.pool / 100 );
+		pool.total = pool.active;
+		pool.pending = p.pending;
+		pool.utilization = p.pool;
+		doc.requests = [
+			{ "id" : "r1", "method" : "GET", "path" : "/checkout", "status" : p.errPct > 5 ? 500 : 200, "ms" : p.slowMs, "at" : now - 5000 },
+			{ "id" : "r2", "method" : "GET", "path" : "/orders", "status" : 200, "ms" : p.fastMs, "at" : now - 3000 },
+			{ "id" : "r3", "method" : "POST", "path" : "/login", "status" : 200, "ms" : p.fastMs * 2, "at" : now - 1500 }
+		];
+		doc.mail.messages.messages[ 1 ].subject = "Order shipped (" & name & ")";
+		return doc;
+	}
+
+	private struct function reportsDoc( name, s, p, now ) {
+		var minutes = ( now - server.demoFleet.started ) \ 60000 + 1500;
+		var requests = s.rate * minutes;
+		var errors = round( requests * p.errPct / 100 );
+		var latency = p.lat.map( ( share ) => round( requests * share / 100 ) );
+		var perMinute = [];
+		for ( var i = 30; i >= 1; i-- ) {
+			var n = max( 1, s.rate + wobble( now - i * 60000, s.hostSeed, 8 ) );
+			perMinute.append( [ ( now \ 60000 ) - i, n, round( n * p.errPct / 100 ), n * p.fastMs ] );
+		}
+		var entry = ( label, share, err, ms ) => ( { "url" : label, "count" : round( requests * share ), "errors" : round( requests * share * err ), "totalMs" : round( requests * share * ms ), "maxMs" : p.slowMs } );
+		return {
+			"firstInstall" : now - 86400000 * 9, "runs" : 3, "requests" : requests * 2, "errors" : errors * 2, "slow" : round( requests * p.slowPct / 100 ) * 2, "queries" : requests * 4, "exceptions" : errors,
+			"minutes" : perMinute,
+			"run" : {
+				"startedAt" : server.demoFleet.started, "savedAt" : now, "requests" : requests, "errors" : errors, "slow" : round( requests * p.slowPct / 100 ),
+				"totalMs" : requests * p.fastMs, "maxMs" : p.slowMs, "queries" : requests * 4, "queryMs" : requests * p.fastMs \ 3, "httpCalls" : requests \ 3, "exceptions" : errors,
+				"status" : [ 0, 0, requests - errors, 0, round( errors / 4 ), errors - round( errors / 4 ) ], "latency" : latency
+			},
+			"urls" : [
+				entry( "GET /checkout", 0.30, p.errPct / 100 * 2, p.fastMs * 2 ),
+				entry( "GET /orders", 0.35, p.errPct / 100 / 2, p.fastMs ),
+				entry( "GET /api/products", 0.20, p.errPct / 100 / 3, p.fastMs / 2 ),
+				entry( "POST /login", 0.10, p.errPct / 100, p.fastMs ),
+				entry( "GET /reports/daily", 0.05, p.errPct / 100, p.fastMs * 4 )
+			]
+		};
+	}
+
+	private struct function errorsDoc( name, s, p, now ) {
+		var minutes = ( now - server.demoFleet.started ) \ 60000 + 1500;
+		var errors = max( 1, round( s.rate * minutes * p.errPct / 100 ) );
+		var sample = ( at, uri, status, message ) => ( { "at" : at, "requestId" : "r" & at, "method" : "GET", "uri" : uri, "status" : status, "serverId" : name, "message" : message, "frames" : [], "app" : "shop" } );
+		var group = ( id, type, message, count, handled, file, line, uri, status ) => ( {
+			"id" : id, "type" : type, "message" : message, "count" : count, "firstSeen" : now - 86400000 * 2, "lastSeen" : now - 20000, "serverId" : name, "handled" : handled,
+			"file" : file, "line" : line, "lastStatus" : status, "urls" : { "GET #uri#" : count }, "samples" : [ sample( now - 20000, uri, status, message ) ]
+		} );
+		var groups = [ group( "shared01", "GatewayTimeout", "Payment gateway timed out", round( errors * 0.4 ) + 1, false, "checkout.bxm", 12, "/checkout", 500 ) ];
+		groups.append( group( "validation-" & name, "ValidationError", "Quantity must be at least 1", round( errors * 0.3 ) + 1, true, "cart.bxm", 31, "/cart", 422 ) );
+		if ( p.deadlocks > 0 ) {
+			groups.append( group( "deadlock-" & name, "DeadlockLoserException", "Transaction was deadlock victim", p.deadlocks * 3, false, "inventory.bxm", 77, "/inventory/reserve", 500 ) );
+		}
+		if ( p.pending > 0 ) {
+			groups.append( group( "pool-" & name, "ConnectionTimeoutException", "Timed out waiting for a connection from pool orders", round( errors * 0.3 ) + 1, false, "orders.bxm", 9, "/orders", 503 ) );
+		}
+		return { "server" : { "id" : name }, "groups" : groups };
+	}
+
+	/** The outgoing HTTP rollup (10 minute buckets, last 2 hours) and a few recent calls. */
+	private function writeHttp( dir, s, p, now ) {
+		var bucketMs = 600000;
+		var thisBucket = now - ( now % bucketMs );
+		var byDay = {};
+		for ( var i = 12; i >= 0; i-- ) {
+			var start = thisBucket - i * bucketMs;
+			var n = max( 5, s.rate * 3 + wobble( start, s.hostSeed, 12 ) );
+			var errors = round( n * p.errPct / 100 );
+			var day = dayOf( start );
+			if ( !byDay.keyExists( day ) ) { byDay[ day ] = []; }
+			byDay[ day ].append( {
+				"t" : start, "total" : agg( n, p.fastMs * 3, errors ),
+				"hosts" : { "payments.example.com" : agg( n \ 2, p.fastMs * 4, errors ), "partner.example.com" : agg( n - n \ 2, p.fastMs * 2, 0 ) },
+				"endpoints" : { "POST payments.example.com/v1/charges" : agg( n \ 2, p.fastMs * 4, errors ), "GET partner.example.com/v1/stock/:sku" : agg( n - n \ 2, p.fastMs * 2, 0 ) }
+			} );
+		}
+		for ( var day in byDay ) {
+			save( dir, "http-rollup-#day#.json", { "format" : 1, "kind" : "http", "day" : day, "bucketMs" : bucketMs, "buckets" : byDay[ day ] } );
+		}
+		var today = dayOf( now );
+		var lines = [];
+		for ( var j = 1; j <= 8; j++ ) {
+			lines.append( jsonSerialize( {
+				"ts" : now - j * 15000, "method" : "POST", "host" : "payments.example.com", "path" : "/v1/charges", "status" : ( j % 5 == 0 && p.errPct > 5 ) ? 503 : 200,
+				"ms" : p.fastMs * 4, "bytes" : 640, "failed" : false, "timeout" : false, "source" : "request", "requestId" : ""
+			} ) );
+		}
+		fileWrite( dir & "/http-calls-#today#.jsonl", lines.toList( char( 10 ) ) & char( 10 ) );
+	}
+
+	// ---- helpers ----
+
+	/** The compact numbers a server saves for a group of calls: calls, timeouts, total and max ms, bytes, 2xx..failed counts and a latency histogram. */
+	private struct function agg( required numeric n, required numeric ms, numeric errors = 0, numeric bytes = 1000 ) {
+		var h = [];
+		for ( var i = 1; i <= 13; i++ ) { h.append( 0 ); }
+		var slot = 13;
+		for ( var k = 1; k <= variables.BOUNDS.len(); k++ ) {
+			if ( arguments.ms <= variables.BOUNDS[ k ] ) { slot = k; break; }
+		}
+		h[ slot ] = arguments.n;
+		return {
+			"n" : arguments.n, "t" : 0, "ms" : arguments.n * arguments.ms, "max" : arguments.ms * 2, "b" : arguments.n * arguments.bytes, "mb" : arguments.bytes,
+			"r" : arguments.n, "s" : [ arguments.n - arguments.errors, 0, 0, arguments.errors, 0 ], "h" : h
+		};
+	}
+
+	/** A small repeatable wobble from -amplitude to +amplitude, so numbers move over time without being random. */
+	private numeric function wobble( required numeric at, required numeric seed, required numeric amplitude ) {
+		var step = ( arguments.at \ 60000 + arguments.seed * 7919 ) % ( arguments.amplitude * 2 + 1 );
+		return step - arguments.amplitude;
+	}
+
+	private string function dayOf( required numeric ms ) {
+		return createObject( "java", "java.time.Instant" ).ofEpochMilli( javacast( "long", arguments.ms ) ).toString().left( 10 );
+	}
+
+	private numeric function nowMs() {
+		return createObject( "java", "java.lang.System" ).currentTimeMillis();
+	}
+
+	/** Written to a temporary name first and renamed, like the real store, so a reader never sees half a file. */
+	private function save( required string dir, required string file, required any doc ) {
+		var tmp = arguments.dir & "/" & arguments.file & ".tmp";
+		fileWrite( tmp, jsonSerialize( arguments.doc ) );
+		fileMove( tmp, arguments.dir & "/" & arguments.file );
+	}
+
+}
