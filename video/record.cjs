@@ -23,9 +23,10 @@ const seconds = id => parseFloat( cp.execSync( `ffprobe -v error -show_entries f
 // What happens on screen for each segment. The runner holds the last frame until the voice has finished.
 const acts = {
 	'01-intro': async t => {
-		// The card is already up (see the sync flash below)
+		// The opening card is already up
 		await t.wait( 8500 );
 		await t.card( null );
+		t.cardOff = t.now();
 	},
 	'02-panel': async t => {
 		for ( let i = 0; i < 6; i++ ) { await t.page.mouse.wheel( 0, 140 ); await t.wait( 700 ); }
@@ -186,18 +187,12 @@ const acts = {
 
 ( async () => {
 	fs.mkdirSync( OUT, { recursive: true } );
-	const t = await open( { base: BASE, out: OUT, password: 'lens-demo', video: !SHOTS } );
+	const t = await open( { base: BASE, out: OUT, password: 'lens-demo', video: false, cast: !SHOTS } );
 	const log = [];
-	// A white flash on the opening card marks one moment in the video (and in this clock), so the mixer can find where the picture starts
+	// The opening card is up from the start, before the first segment
 	await t.go( '/index.bxm' );
 	await t.card( { t: '<b>Bx</b>Lens', s: 'Observability for BoxLang' } );
-	await t.wait( 1200 );
-	const flashOn = t.now();
-	await t.page.evaluate( () => { const d = document.createElement( 'div' ); d.id = '__flash'; d.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:2147483647'; document.body.appendChild( d ); } );
-	await t.wait( 500 );
-	await t.page.evaluate( () => document.getElementById( '__flash' ).remove() );
-	const flashOff = t.now();
-	await t.wait( 900 );
+	await t.wait( 2000 );
 	const gap = 1.1;       // seconds of picture after the voice has finished
 	const lead = 0.7;      // seconds of picture before the voice starts
 	for ( const seg of narration.segments ) {
@@ -214,7 +209,7 @@ const acts = {
 		console.log( seg.id, 'start', start.toFixed( 1 ), 'end', t.now().toFixed( 1 ) );
 	}
 	const total = t.now();
-	await t.close( SHOTS ? null : path.join( OUT, 'screen.webm' ) );
-	fs.writeFileSync( path.join( OUT, 'timeline.json' ), JSON.stringify( { total, flashOn, flashOff, segments: log }, null, 2 ) );
+	await t.close();
+	fs.writeFileSync( path.join( OUT, 'timeline.json' ), JSON.stringify( { total, segments: log }, null, 2 ) );
 	console.log( 'total', total.toFixed( 1 ) );
 } )().catch( e => { console.error( e ); process.exit( 1 ); } );

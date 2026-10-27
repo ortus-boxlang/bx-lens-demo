@@ -52,13 +52,30 @@ async function open( o ) {
 	const browser = await chromium.launch( { executablePath: process.env.CHROMIUM || undefined, args: [ '--no-sandbox', '--force-device-scale-factor=1' ] } );
 	const ctx = await browser.newContext( {
 		viewport: size, colorScheme: 'dark',
-		...( o.video === false ? {} : { recordVideo: { dir: o.out, size } } ),
+		...( o.video === false || o.cast ? {} : { recordVideo: { dir: o.out, size } } ),
 	} );
 	await ctx.addInitScript( overlay );
 	const page = await ctx.newPage();
 	page.setDefaultTimeout( 20000 );
 	page.on( 'dialog', d => d.accept().catch( () => {} ) );
 	const t0 = Date.now();
+	// Recording with Playwright's own video stretches time when the machine is busy, so the picture drifts from the voice. The screencast of
+	// the browser stamps every frame with the real time instead; mix.cjs builds the video from those frames and their stamps.
+	const frames = [];
+	let cdp = null, writing = Promise.resolve();
+	const frameDir = path.join( o.out, 'frames' );
+	if ( o.cast ) {
+		fs.rmSync( frameDir, { recursive: true, force: true } );
+		fs.mkdirSync( frameDir, { recursive: true } );
+		cdp = await ctx.newCDPSession( page );
+		cdp.on( 'Page.screencastFrame', ev => {
+			const n = frames.length;
+			frames.push( { f: 'f' + String( n ).padStart( 6, '0' ) + '.jpg', ts: ev.metadata.timestamp } );
+			fs.writeFileSync( path.join( frameDir, frames[ n ].f ), Buffer.from( ev.data, 'base64' ) );
+			cdp.send( 'Page.screencastFrameAck', { sessionId: ev.sessionId } ).catch( () => {} );
+		} );
+		await cdp.send( 'Page.startScreencast', { format: 'jpeg', quality: 88, maxWidth: size.width, maxHeight: size.height, everyNthFrame: 1 } );
+	}
 	const wait = ms => page.waitForTimeout( ms );
 	const loc = s => ( typeof s === 'string' ? page.locator( s ).first() : s );
 
@@ -130,6 +147,14 @@ async function open( o ) {
 		}
 	}
 	t.close = async file => {
+		if ( cdp ) {
+			await cdp.send( 'Page.stopScreencast' ).catch( () => {} );
+			await wait( 300 );
+			fs.writeFileSync( path.join( o.out, 'cast.json' ), JSON.stringify( { t0epoch: t0 / 1000, frames } ) );
+			await ctx.close();
+			await browser.close();
+			return;
+		}
 		const vid = page.video();
 		await ctx.close();
 		if ( vid && file ) { await vid.saveAs( file ); }

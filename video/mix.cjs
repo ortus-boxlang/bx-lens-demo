@@ -1,6 +1,6 @@
 /**
  * Puts the voice and the music on the recording. Usage: OUT=out node mix.cjs
- *   in:  OUT/screen.webm, OUT/timeline.json, OUT/voice/*.wav, OUT/music.wav (a bx-audio piece)
+ *   in:  OUT/cast.json and OUT/frames (the screencast), OUT/timeline.json, OUT/voice/*.wav, OUT/music.wav (a bx-audio piece)
  *   out: OUT/bxlens-demo-walkthrough.mp4, .srt, poster.jpg
  * The voice of each segment is placed where the segment really started (timeline.json), the music is looped to the length of the picture
  * and ducked under the voice, and the mix is mastered to -14 LUFS (what YouTube plays at) with a true peak ceiling of -1.5 dB.
@@ -18,23 +18,25 @@ const run = ( cmd, args, opts = {} ) => {
 	return r;
 };
 
-// 1. Where the picture really starts: the white flash of the opening card
-const stats = run( 'ffmpeg', [ '-v', 'error', '-i', path.join( OUT, 'screen.webm' ), '-t', '15', '-vf', 'signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-', '-an', '-f', 'null', '-' ] ).stdout;
-let on = null, off = null, t = null;
-for ( const line of stats.split( '\n' ) ) {
-	let m = line.match( /pts_time:([\d.]+)/ ); if ( m ) { t = parseFloat( m[ 1 ] ); }
-	m = line.match( /YAVG=([\d.]+)/ );
-	if ( m && t !== null ) {
-		const bright = parseFloat( m[ 1 ] ) > 200;
-		if ( bright && on === null ) { on = t; }
-		if ( bright ) { off = t; }
-	}
-}
-if ( on === null ) { throw new Error( 'The flash was not found in the first 15 seconds of the recording' ); }
-const vStart = off + 0.04;            // video time at which the flash has ended
-const shift = tl.flashOff;            // the same moment in the recorder's clock
+// 1. The picture: every frame of the browser screencast has the real time it was shown, so the video is built from the frames and those times
+// and cannot drift from the voice. delta is the video time minus the recorder time.
+const cast = JSON.parse( fs.readFileSync( path.join( OUT, 'cast.json' ), 'utf8' ) );
+const ts0 = cast.frames[ 0 ].ts;
+const delta = cast.t0epoch - ts0;
+const list = [ 'ffconcat version 1.0' ];
+cast.frames.forEach( ( fr, i ) => {
+	const next = cast.frames[ i + 1 ];
+	list.push( `file 'frames/${ fr.f }'`, `duration ${ ( next ? Math.max( 0.001, next.ts - fr.ts ) : 0.5 ).toFixed( 4 ) }` );
+} );
+list.push( `file 'frames/${ cast.frames[ cast.frames.length - 1 ].f }'` );
+fs.writeFileSync( path.join( OUT, 'frames.txt' ), list.join( '\n' ) );
+const screen = path.join( OUT, 'screen.mp4' );
+run( 'ffmpeg', [ '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join( OUT, 'frames.txt' ), '-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '12', screen ], { cwd: OUT } );
+const startB = 1.0;                   // recorder time of the first picture we keep: the opening card is up
+const vStart = startB + delta;        // video time of it
+const shift = startB;
 const total = tl.total - shift + 3.5; // seconds of picture we keep, with a tail for the music
-console.log( `flash ${ on.toFixed( 2 ) }s to ${ off.toFixed( 2 ) }s in the video, picture starts at ${ vStart.toFixed( 2 ) }s, ${ total.toFixed( 1 ) }s long` );
+console.log( `${ cast.frames.length } frames, picture starts at ${ vStart.toFixed( 2 ) }s of the screen video, ${ total.toFixed( 1 ) }s long` );
 
 // 2. The music, looped to the length with a crossfade between the repeats
 const music = path.join( OUT, 'music.wav' );
@@ -49,7 +51,7 @@ run( 'ffmpeg', [ '-v', 'error', '-y', ...ins, '-filter_complex', parts.join( ';'
 
 // 3. The mix
 const segs = tl.segments.filter( s => fs.existsSync( path.join( OUT, 'voice', s.id + '.wav' ) ) );
-const inputs = [ '-ss', vStart.toFixed( 3 ), '-t', total.toFixed( 3 ), '-i', path.join( OUT, 'screen.webm' ) ];
+const inputs = [ '-ss', vStart.toFixed( 3 ), '-t', total.toFixed( 3 ), '-i', screen ];
 segs.forEach( s => inputs.push( '-i', path.join( OUT, 'voice', s.id + '.wav' ) ) );
 inputs.push( '-i', loop );
 const mi = segs.length + 1;
