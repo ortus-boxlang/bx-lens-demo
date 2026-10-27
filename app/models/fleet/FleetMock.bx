@@ -114,7 +114,7 @@ class {
 	}
 
 	private struct function reportsDoc( name, s, p, now ) {
-		var minutes = ( now - server.demoFleet.started ) \ 60000 + 1500;
+		var minutes = ( now - server.demoFleet.started ) \ 60000 + 25;
 		var requests = s.rate * minutes;
 		var errors = round( requests * p.errPct / 100 );
 		var latency = p.lat.map( ( share ) => round( requests * share / 100 ) );
@@ -143,7 +143,7 @@ class {
 	}
 
 	private struct function errorsDoc( name, s, p, now ) {
-		var minutes = ( now - server.demoFleet.started ) \ 60000 + 1500;
+		var minutes = ( now - server.demoFleet.started ) \ 60000 + 25;
 		var errors = max( 1, round( s.rate * minutes * p.errPct / 100 ) );
 		var sample = ( at, uri, status, message ) => ( { "at" : at, "requestId" : "r" & at, "method" : "GET", "uri" : uri, "status" : status, "serverId" : name, "message" : message, "frames" : [], "app" : "shop" } );
 		var group = ( id, type, message, count, handled, file, line, uri, status ) => ( {

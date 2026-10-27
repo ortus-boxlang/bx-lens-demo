@@ -1,0 +1,10 @@
+// Speaks every segment of narration.json with bx-audio and writes one WAV per segment into OUT/voice.
+// Usage: NARRATION=narration.json OUT=out boxlang speak.bxs
+narration = jsonDeserialize( fileRead( getSystemSetting( "NARRATION" ) ) );
+outDir = getSystemSetting( "OUT" ) & "/voice";
+directoryCreate( outDir, true, true );
+for ( seg in narration.segments ) {
+	audio = audioSpeak( text = seg.text, voice = narration.voice, speed = narration.speed, pauses = narration.pauses );
+	audioSave( audio, outDir & "/" & seg.id & ".wav" );
+	println( "spoke " & seg.id );
+}

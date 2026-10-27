@@ -1,0 +1,41 @@
+# The walkthrough video
+
+A 4 to 5 minute video of the demo: the BxLens bar first, then the console, then the scenarios. The voice and the music are made with [bx-audio](https://bxaudio.boxlang.io) (a Piper voice and the synthwave piece). The screen is recorded in a headless browser, so the same video can be built again after the demo or the narration changes.
+
+## How it works
+
+1. `speak.bxs` speaks every segment of `narration.json` with bx-audio, one WAV per segment, so the length of each is known.
+2. `record.cjs` drives the browser through the demo, segment by segment, with a visible cursor. It holds each picture until its sentences are spoken and writes `timeline.json` with the time each segment really started.
+3. `mix.cjs` places the voice where each segment started, loops the music to the length and ducks it under the voice, masters to -14 LUFS, puts it on the picture and writes the captions (`.srt`).
+
+| File | What it is |
+|---|---|
+| `narration.json` | The voice, its speed and pauses, and the words of every segment |
+| `record.cjs` | What happens on screen in each segment |
+| `lib.cjs` | The browser, the cursor, the title cards and the helpers |
+| `warmup.sh`, `prepare.cjs`, `errors.sh` | Put data in the demo before recording: traffic, agent runs, mock servers, and a clean list of errors |
+| `mix.cjs`, `build.sh` | The mix, and everything in one command |
+
+## Build it
+
+You need the demo running with **BoxLang+** (the AI page, request cost and the server selector are Plus), Node.js 20 or newer, ffmpeg, a Chromium, and BoxLang with the `bx-audio` module.
+
+```bash
+cd video
+npm install playwright
+BASE=http://127.0.0.1:8088 CHROMIUM=/path/to/chrome OUT=out ./build.sh
+```
+
+The result is `out/bxlens-demo-walkthrough.mp4`, the `.srt` captions, a poster and `credits.txt`.
+
+## Changing it
+
+* **The words or the voice**: edit `narration.json` and run `build.sh` again. The recording follows the length of the voice, so it is recorded again too.
+* **What is on screen**: edit the function of the segment in `record.cjs`. `SHOTS=1 ONLY=11-requests node record.cjs` runs one segment and saves a screenshot instead of a video, for checking a selector.
+* **Another voice**: any single speaker voice of bx-audio (`bx-audio voices`). Check its license: some ask for a credit line, and some are not for marketing.
+* **The music**: `boxlang module:bxaudio render <piece> --out=out/music.wav`, then `build.sh` skips rendering when `out/music.wav` is there.
+
+## Notes
+
+* The video is recorded at 1920 by 1080. `lib.cjs` hides two things on screen that belong to the recording machine and not to the demo: the mounts and JVM flags on the System page, and the volume of the first server in the Overview table.
+* The console redraws its lists every second, so rows are clicked with `pick`, which clicks the element itself. Selectors use `:visible` because the console keeps every page in the document.
