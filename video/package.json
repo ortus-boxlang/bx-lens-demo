@@ -1,0 +1,15 @@
+{
+  "name": "video",
+  "version": "1.0.0",
+  "description": "A 4 to 5 minute video of the demo: the BxLens bar first, then the console, then the scenarios. The voice and the music are made with [bx-audio](https://bxaudio.boxlang.io) (a Piper voice and the synthwave piece). The screen is recorded in a headless browser, so the same video can be built again after the demo or the narration changes.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}
