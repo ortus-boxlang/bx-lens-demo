@@ -40,6 +40,26 @@ function overlay() {
 	if ( document.documentElement ) mount(); else document.addEventListener( 'DOMContentLoaded', mount );
 }
 
+// The console of a trial shows a banner and a pill, and the machine that records the video has mounts that are not part of the story.
+// Both are hidden on every page, by their text, because the console redraws itself every second.
+function tidy() {
+	const hideText = ( root, re, how ) => {
+		const walker = document.createTreeWalker( root, NodeFilter.SHOW_TEXT );
+		for ( let n; ( n = walker.nextNode() ); ) {
+			if ( re.test( n.nodeValue ) && n.parentElement ) {
+				const e = n.parentElement.closest( how.up ) || n.parentElement;
+				e.style.setProperty( how.prop, how.val, 'important' );
+			}
+		}
+	};
+	setInterval( () => {
+		if ( !document.body ) { return; }
+		hideText( document.body, /You are on a trial/, { up: '.banner, .trial, [class*=banner]', prop: 'display', val: 'none' } );
+		hideText( document.body, /^\s*Trial\s*·/, { up: 'span, a, button', prop: 'visibility', val: 'hidden' } );
+		hideText( document.body, /\/opt\/claude-code|\/opt\/pw-browsers|\/root\/\.claude/, { up: 'td, div', prop: 'visibility', val: 'hidden' } );
+	}, 250 );
+}
+
 /**
  * Open the browser.
  *
@@ -55,6 +75,7 @@ async function open( o ) {
 		...( o.video === false || o.cast ? {} : { recordVideo: { dir: o.out, size } } ),
 	} );
 	await ctx.addInitScript( overlay );
+	await ctx.addInitScript( tidy );
 	const page = await ctx.newPage();
 	page.setDefaultTimeout( 20000 );
 	page.on( 'dialog', d => d.accept().catch( () => {} ) );

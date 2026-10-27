@@ -76,7 +76,7 @@
 		},
 		{
 			"id": "17-deadlock",
-			"text": "A deadlock. The system page flags two stuck threads, and the threads page shows exactly where each one is waiting."
+			"text": "A deadlock. The JVM page flags two stuck threads, and the Threads tab shows exactly where each one is waiting."
 		},
 		{
 			"id": "18-ai",

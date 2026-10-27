@@ -82,7 +82,7 @@ const acts = {
 		await t.fire( '/investigate/checkout.bxm' );
 		await t.nav( 'Requests' );
 		await t.wait( 800 );
-		await t.page.locator( 'input[placeholder="Filter by URL"]' ).click();
+		await t.page.locator( 'input[placeholder^="Search URL"]:visible' ).click();
 		await t.page.keyboard.type( 'checkout', { delay: 80 } );
 		await t.wait( 800 );
 		await t.pick( 'tr:visible:has-text("/investigate/checkout.bxm")' );
@@ -120,13 +120,11 @@ const acts = {
 	},
 	'17-deadlock': async t => {
 		await t.fire( '/control.bxm?action=start&id=deadlock&kind=java' );
-		await t.nav( 'System' );
-		// The mounts and the JVM flags of the recording machine are not part of the story
-		await t.hide( [ '#sys-volumes-h', '#sys-volumes', '#sys-folders' ] );
-		await t.hideCard( 'Flags' );
-		await t.wait( 2600 );
-		await t.nav( 'Threads' );
-		await t.wait( 2000 );
+		await t.wait( 2500 );
+		await t.nav( 'JVM' );
+		await t.wait( 2200 );
+		await t.click( 'a:visible:text-is("Threads")' );
+		await t.wait( 2200 );
 	},
 	'18-ai': async t => {
 		await t.fire( '/control.bxm?action=resetAll' );
@@ -179,9 +177,10 @@ const acts = {
 		await t.pick( 'tr:visible:has-text("PaymentGatewayError")' );
 	},
 	'22-more': async t => {
-		await t.go( '/watchers.bxm' );
-		await t.wait( 3000 );
-		await t.go( '/cbApp/' );
+		await t.nav( 'Watchers' );
+		await t.wait( 2500 );
+		await t.nav( 'ColdBox' );
+		await t.wait( 2500 );
 	},
 	'23-outro': async t => {
 		await t.card( { t: '<b>Bx</b>Lens', s: 'Find the cause, not just the symptom. bxlens.boxlang.io' } );
@@ -196,6 +195,7 @@ const acts = {
 	await t.go( '/index.bxm' );
 	await t.card( { t: '<b>Bx</b>Lens', s: 'Observability for BoxLang' } );
 	await t.wait( 2000 );
+	if ( ONLY.length && !ONLY.includes( '01-intro' ) ) { await t.card( null ); }
 	const gap = 1.1;       // seconds of picture after the voice has finished
 	const lead = 0.7;      // seconds of picture before the voice starts
 	for ( const seg of narration.segments ) {
