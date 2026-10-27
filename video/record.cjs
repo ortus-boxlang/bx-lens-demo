@@ -58,8 +58,9 @@ const acts = {
 	'07-cost': async t => {
 		await t.goBar( '/cost.bxm?mode=both' );
 		await t.bar( 'Request' );
-		await t.page.mouse.move( 960, 900 );
-		for ( let i = 0; i < 5; i++ ) { await t.page.mouse.wheel( 0, 160 ); await t.wait( 800 ); }
+		await t.wait( 1500 );
+		await t.page.mouse.move( 960, 900, { steps: 15 } );
+		await t.page.mouse.wheel( 0, 300 );
 	},
 	'08-exception': async t => {
 		await t.goBar( '/caught-exception.bxm' );
@@ -163,6 +164,8 @@ const acts = {
 	},
 	'21-tickets': async t => {
 		await t.go( '/investigate/' );
+		// The bar was left open by the earlier pages
+		if ( await t.page.locator( '#bxlens .panel' ).isVisible().catch( () => false ) ) { await t.page.keyboard.press( 'Control+`' ); await t.wait( 500 ); }
 		await t.hover( 'button.repro >> nth=0' );
 		await t.hover( 'button.repro >> nth=1' );
 		await t.hover( 'button.repro >> nth=2' );

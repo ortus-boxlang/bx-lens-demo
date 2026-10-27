@@ -26,7 +26,9 @@ const delta = cast.t0epoch - ts0;
 const list = [ 'ffconcat version 1.0' ];
 cast.frames.forEach( ( fr, i ) => {
 	const next = cast.frames[ i + 1 ];
-	list.push( `file 'frames/${ fr.f }'`, `duration ${ ( next ? Math.max( 0.001, next.ts - fr.ts ) : 0.5 ).toFixed( 4 ) }` );
+	// The screencast sends a frame only when the picture changes, so the last one (the closing card) is held until the end of the recording
+	const last = Math.max( 0.5, cast.t0epoch + tl.total + 6 - fr.ts );
+	list.push( `file 'frames/${ fr.f }'`, `duration ${ ( next ? Math.max( 0.001, next.ts - fr.ts ) : last ).toFixed( 4 ) }` );
 } );
 list.push( `file 'frames/${ cast.frames[ cast.frames.length - 1 ].f }'` );
 fs.writeFileSync( path.join( OUT, 'frames.txt' ), list.join( '\n' ) );
