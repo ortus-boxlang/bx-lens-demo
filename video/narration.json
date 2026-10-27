@@ -1,0 +1,110 @@
+{
+	"voice": "en_GB-northern_english_male-medium",
+	"speed": 0.94,
+	"pauses": {
+		"sentence": 0.5,
+		"paragraph": 0.9
+	},
+	"segments": [
+		{
+			"id": "01-intro",
+			"text": "Welcome to BxLens. Observability for BoxLang, built for the developer who has a ticket, and needs the cause. This is the demo application. Everything you are about to see is real."
+		},
+		{
+			"id": "02-panel",
+			"text": "The demo is a small shop with a control panel. Every page creates one kind of problem, so there is always something to find."
+		},
+		{
+			"id": "03-bar",
+			"text": "Start with the bar. It sits on every page, and answers one question. What happened in this request?"
+		},
+		{
+			"id": "04-timeline",
+			"text": "The strip shows the status, the time, the memory, and the queries. Open it, and the timeline lays out every template and every query, with exact timings."
+		},
+		{
+			"id": "05-queries",
+			"text": "Here is a classic mistake. Ten orders, eleven queries. The queries tab lists the repeated statement, and the exact line that ran it."
+		},
+		{
+			"id": "06-http",
+			"text": "Outgoing calls fail in many ways. A timeout, a rate limit, a gateway error, a host that does not exist. Each one is listed, with its status and its time."
+		},
+		{
+			"id": "07-cost",
+			"text": "The request tab shows what this one request cost. The processor time, and the memory it allocated."
+		},
+		{
+			"id": "08-exception",
+			"text": "A caught exception still counts. The bar opens on the problem, by itself."
+		},
+		{
+			"id": "09-overview",
+			"text": "Now the console. One page for the whole server. The overview shows requests, errors, response time, and what needs your attention first."
+		},
+		{
+			"id": "10-servers",
+			"text": "At the top, the servers. This one is live. Two more are saved in their own folders. One of them is struggling, with high heap, failing tasks, and a deadlock."
+		},
+		{
+			"id": "11-requests",
+			"text": "Every request is kept. This checkout is slow, and the issues list explains why. A repeated query, and a slow outgoing call."
+		},
+		{
+			"id": "11b-security",
+			"text": "The same list carries security notes. Missing headers, and cookies without safe flags."
+		},
+		{
+			"id": "12-errors",
+			"text": "Errors are grouped by cause, with counts, and a sample with its stack. Secrets are removed before anything is stored."
+		},
+		{
+			"id": "13-reports",
+			"text": "Reports give the percentiles, the status codes, and the slowest addresses."
+		},
+		{
+			"id": "14-executors",
+			"text": "Now the runtime. This pool is saturated. Two threads, a growing queue, and health notes that say what to change."
+		},
+		{
+			"id": "15-tasks",
+			"text": "Scheduled tasks. One is failing, with its error and its stack. One is slow, and one overlaps itself."
+		},
+		{
+			"id": "16-datasources",
+			"text": "Datasources. Every connection is held, and the next query has to wait."
+		},
+		{
+			"id": "17-deadlock",
+			"text": "A deadlock. The system page flags two stuck threads, and the threads page shows exactly where each one is waiting."
+		},
+		{
+			"id": "18-ai",
+			"text": "Then the AI page. Five agents, running on a mock model. Runs, success, tokens and cost. A failing tool is flagged, with the agent that uses it."
+		},
+		{
+			"id": "19-trace",
+			"text": "Open the coordinator, and see how it is composed. Open a run, and the trace nests the sub agents, each tool, and each model call."
+		},
+		{
+			"id": "20-fleet",
+			"text": "The server selector looks at any server, or at all of them at once, with the numbers added up."
+		},
+		{
+			"id": "21-tickets",
+			"text": "Back in the demo, three support tickets. A slow checkout. Payments that fail one time in four. A site that slows down over time. Each one has a reproduce button, and BxLens has the answer."
+		},
+		{
+			"id": "21b-payments",
+			"text": "Take the payments ticket. Reproduce it, and the errors page shows one new group. About a quarter of the requests, and the gateway's answer in the sample."
+		},
+		{
+			"id": "22-more",
+			"text": "There are file watchers, and a real ColdBox application with its own schedulers. All of it, wired to the same console."
+		},
+		{
+			"id": "23-outro",
+			"text": "BxLens. Find the cause, not just the symptom. Install it from ForgeBox, and run this demo yourself."
+		}
+	]
+}
