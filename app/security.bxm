@@ -1,0 +1,28 @@
+<bx:script>
+	variant = url.variant ?: "insecure";
+	request.pageTitle = "Security notes";
+	request.lookAt = [
+		"Console > Requests > this request > Issues: a Note named Security headers missing, and one named Cookie flags missing, with the exact headers and cookies. The bar does not list them.",
+		"Open the other variant and compare: the hardened page raises neither note.",
+		"The notes only apply to HTML responses with status 200 to 399. JSON endpoints are not checked."
+	];
+</bx:script>
+<bx:if variant == "hardened">
+	<bx:header name="Content-Security-Policy" value="default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'" />
+	<bx:header name="X-Content-Type-Options" value="nosniff" />
+	<bx:header name="X-Frame-Options" value="DENY" />
+	<bx:header name="Strict-Transport-Security" value="max-age=31536000; includeSubDomains" />
+	<bx:header name="Referrer-Policy" value="no-referrer" />
+	<bx:cookie name="prefs" value="theme=dark" httpOnly="true" secure="true" sameSite="Strict" />
+<bx:else>
+	<bx:cookie name="prefs" value="theme=dark" />
+	<bx:cookie name="visitor" value="v-1042" />
+</bx:if>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Security notes: #variant#</h1>
+<p>This page sets <strong>#variant == "hardened" ? "the security headers and safe cookie flags" : "no security headers and two cookies without flags"#</strong>.</p>
+<p><a class="btn #variant == 'insecure' ? 'go' : ''#" href="/security.bxm?variant=insecure">Insecure</a> <a class="btn #variant == 'hardened' ? 'go' : ''#" href="/security.bxm?variant=hardened">Hardened</a></p>
+<p>Every other page of this demo is an "insecure" page on purpose, so it shows the notes as well.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

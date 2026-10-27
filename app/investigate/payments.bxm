@@ -1,0 +1,25 @@
+<bx:script>
+	request.pageTitle = "Payment";
+	application.investigation = application.investigation ?: { payments : 0, leak : [] };
+	lock name="demoInvestigation" type="exclusive" timeout="5" {
+		application.investigation.payments++;
+		attempt = application.investigation.payments;
+	}
+	// The order is reserved in the database first, which holds a connection for a while
+	bx:transaction {
+		queryExecute( "SELECT COUNT(*) AS n FROM orders WHERE status = :s", { s : "open" } );
+		sleep( 900 );
+	}
+	// Then the payment gateway is called. Every fourth call finds it unavailable.
+	gateway = "";
+	bx:http url="http://localhost:#cgi.server_port#/api/upstream.json.bxm?mode=#attempt mod 4 == 0 ? '503' : 'ok'#" timeout="5" result="gateway";
+	if ( gateway.statusCode != 200 && gateway.statusCode != "200 OK" ) {
+		throw( type = "PaymentGatewayError", message = "Payment declined: the gateway answered #gateway.statusCode# for attempt #attempt#" );
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Payment accepted</h1>
+<p>Attempt #attempt#.</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

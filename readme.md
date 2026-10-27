@@ -86,6 +86,8 @@ With `WITH_AI=1`, the script starts the `ollama` service from `docker-compose.ym
 
 ## Ten minute showcase
 
+Giving a talk? [DEMO.md](DEMO.md) is a longer script for developers: bar tour, three investigations, runtime problems, AI observability and the three server fleet.
+
 Open the demo, start the console in another tab (<http://localhost:8088/~bxlens/index.bxm>, log in with `lens-demo`). Keep the bar closed until you need it.
 
 | # | Do this | Show |
@@ -144,8 +146,13 @@ Pages are listed with how to trigger them and what to look for. Every page also 
 |---|---|
 | `/errors/index.bxm` | Nine error types, caught (200) or uncaught (500). `app` changes its message each time and still groups as one cause. `secret` proves redaction |
 | `/logging.bxm` | One line at every level in `application.log` and `demo.log`, and a flood option for the live tail |
-| `/tasks.bxm` | The `demoScheduler`: `refresh-stats` healthy, `sync-prices` failing, `nightly-report` slow, `export-orders` overlapping, `warm-cache` paused, plus `ai-mcp-heartbeat`. The heartbeat calls tools on two local MCP servers every 15 seconds and intentionally fails every seventh cycle; with `WITH_AI=1`, it also runs one of three Ollama-backed agents every fourth cycle. Tasks start with the first request to the app |
+| `/tasks.bxm` | The `demoScheduler`: `refresh-stats` healthy, `sync-prices` failing, `nightly-report` slow, `export-orders` overlapping, `warm-cache` paused, plus `ai-mcp-heartbeat` and `fleet-mock`. The heartbeat calls tools on two local MCP servers every 15 seconds, intentionally fails every seventh cycle, and runs a round of agents on the mock AI provider. Tasks start with the first request to the app |
 | `/fleet.bxm` | Three servers for the console's server selector (BoxLang+). `web-a` is this server. `web-b` and `web-c` are mocks: the `fleet-mock` task of the demo scheduler writes their folders (`instance.json`, `health.json`, `reports.json`, `errors.json`, HTTP rollup) into the shared store folder (`.run/lens-data`, set by `start.sh`) every 30 seconds, in the formats BxLens saves. `web-b` starts healthy and `web-c` degraded (heap above 90%, a deadlock, failing tasks, slow p95). The page switches a mock between healthy, degraded, critical and silent (it stops writing, so it turns *behind* after two minutes). Console: Server selector, Overview Servers table, and All servers on Reports, Errors and HTTP |
+| `/investigate/` | Three guided investigations, written as support tickets: a slow checkout (N+1 plus a slow carrier call plus a cache that never stores), intermittent payment failures (a gateway that fails one call in four, and a pool starved by a held transaction), and a site that slows down over time (a leak and a scan that grows with it). Each has a **Reproduce** button. The answer key is in [DEMO.md](DEMO.md) |
+| `/http-failures.bxm` | Nine outgoing calls from one request: healthy, 503, 429, a timeout, a redirect, a large body, 404, an unknown host, a refused connection. Bar > HTTP, console HTTP page |
+| `/security.bxm` | `?variant=insecure` sets no security headers and two cookies without flags, `?variant=hardened` sets them. Console request detail > Issues shows the notes |
+| `/cost.bxm` | `?mode=light`, `cpu`, `memory` or `both`. Request cost (CPU time and memory allocated by the request), BoxLang+ |
+| `/ai.bxm` | Five agents on bx-ai's mock provider, see [AI agents and MCP workload](#ai-agents-and-mcp-workload) |
 | `/watchers.bxm` | Seven file watchers started with the app (`this.watchers`) and from `boxlang.json`: `inbox` healthy (struct listener), `config-reload` (debounce 1000, three saves become one reload), `slow-listener` (3 s per event), `failing-listener` (throws, stops itself after 5 errors), `chatty` (recursive, no debounce, 200 file burst), `stopped-watcher` (registered, never started) and `global-config` (defined in `boxlang.json`). Buttons write files into the watched folders under `.run/watched` and start, stop or restart a watcher; the last events the listeners saw are listed. Listeners are classes in `app/models/watchers` |
 | `/traffic.bxm` | A browser side generator with a weighted mix of pages, 404s and 500s |
 
@@ -164,7 +171,17 @@ BxLens listens to the `onMail` events of `bx-mail`. **No `bx-mail` release annou
 
 `bx-ai` is installed locally with the other app modules. Application startup registers two small MCP servers at `/~bxai/mcp.bxm?server=bxLensMetrics` and `/~bxai/mcp.bxm?server=bxLensOperations`; their tools return synthetic metrics, order and shipping data, and emit demo log events. The `ai-mcp-heartbeat` scheduler calls those tools every 15 seconds and intentionally generates an MCP/tool failure every seventh cycle. This produces ongoing MCP, scheduler, logging and error activity without requiring a model.
 
-Set `WITH_AI=1` to enable the three Ollama-backed agents as well. The scheduler runs an agent every fourth heartbeat, rotating through metrics, order and cross-server operations analysis. These model calls require Ollama and the configured model, so may take several seconds; by default only the MCP workload runs. The workload is intentionally demo-only and does not place real orders or contact external services.
+Five agents run on bx-ai's **mock provider**, so no model, key or Ollama is needed and nothing is billed (`app/models/AIAgents.bx`, page `/ai.bxm`). The mock plays back scripted model turns; the agent loop, local tools, the MCP servers above, delegation to sub-agents, a failing tool and a slow tool are real. Token numbers are the mock's own (characters divided by four), and `boxlang.json` sets a price table for the two mock models so the Cost tab has numbers. The agents:
+
+| Agent | Behavior |
+|---|---|
+| `SupportTriage` | Healthy. Two local tools |
+| `OrderResearcher` | Healthy sub-agent. Calls the hosted MCP order server |
+| `ShippingPlanner` | Slow sub-agent. Its tool takes 2 seconds |
+| `Coordinator` | Delegates to the two sub-agents, so the trace nests |
+| `FlakyReporter` | Failing. Its tool returns a 503 on every third call |
+
+The scheduler's `ai-mcp-heartbeat` runs one round (SupportTriage, Coordinator, FlakyReporter) every 15 seconds. `/ai.bxm` can run an agent, or 10 or 30 rounds, to fill the AI page quickly. `WITH_AI=1` is now only for Lensy (Ollama).
 
 ### ColdBox app
 

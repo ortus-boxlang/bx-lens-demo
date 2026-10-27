@@ -11,7 +11,7 @@ check() { # expected path
 }
 for p in /index.bxm /orders.bxm /n-plus-one.bxm /slow.bxm /query-error.bxm /caught-exception.bxm /http.bxm /http-loop.bxm /cache.bxm /cache-churn.bxm \
 	/timers.bxm /functions.bxm /forms.bxm /session.bxm /transaction.bxm /extend.bxm /xss.bxm /requestid.bxm /api/orders.json.bxm /api/rates.json.bxm \
-	/events.bxm /logging.bxm /tasks.bxm /traffic.bxm /errors/index.bxm "/errors/throw.bxm?type=app&caught=1" "/errors/throw.bxm?type=secret&caught=1" \
+	/events.bxm /logging.bxm /tasks.bxm /traffic.bxm /watchers.bxm /fleet.bxm /ai.bxm /http-failures.bxm /security.bxm?variant=insecure /security.bxm?variant=hardened /cost.bxm?mode=light /cost.bxm?mode=cpu /investigate/ /investigate/checkout.bxm /investigate/slowdown.bxm /errors/index.bxm "/errors/throw.bxm?type=app&caught=1" "/errors/throw.bxm?type=secret&caught=1" \
 	/concurrency/deadlock.bxm /concurrency/lock-contention.bxm /concurrency/executors.bxm /runtime/pool-exhaustion.bxm /runtime/memory-leak.bxm \
 	/runtime/gc-pressure.bxm /runtime/thread-leak.bxm /runtime/cpu-spin.bxm /orm.bxm /orm.bxm?save=1 /orm.bxm?fail=1 /mail.bxm /mail/send.bxm?scenario=text /mail/send.bxm?scenario=html /mail/send.bxm?scenario=multipart /mail/send.bxm?scenario=fail /mail/failover/send.bxm \
 	/legacy/index.cfm /legacy/orders.cfm /legacy/n-plus-one.cfm /legacy/tags.cfm \

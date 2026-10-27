@@ -1,0 +1,47 @@
+<bx:script>
+	request.pageTitle = "HTTP failures";
+	base = "http://localhost:#cgi.server_port#";
+	// Each call is a different way an outgoing call can go wrong. The page itself stays 200, so the failures are only in BxLens.
+	calls = [
+		{ label : "Healthy", url : "#base#/api/upstream.json.bxm?mode=ok", timeout : 5 },
+		{ label : "503 from the partner", url : "#base#/api/upstream.json.bxm?mode=503", timeout : 5 },
+		{ label : "429 rate limited", url : "#base#/api/upstream.json.bxm?mode=429", timeout : 5 },
+		{ label : "Slow partner (3 s) with a 1 s timeout", url : "#base#/api/upstream.json.bxm?mode=slow", timeout : 1 },
+		{ label : "Redirect", url : "#base#/api/upstream.json.bxm?mode=redirect", timeout : 5 },
+		{ label : "Large response (about 300 KB)", url : "#base#/api/upstream.json.bxm?mode=big", timeout : 5 },
+		{ label : "Missing endpoint (404)", url : "#base#/api/missing.json", timeout : 5 },
+		{ label : "Host that does not exist", url : "http://no-such-partner.invalid/v1/orders", timeout : 3 },
+		{ label : "Connection refused", url : "http://127.0.0.1:1/nothing", timeout : 3 }
+	];
+	results = [];
+	for ( c in calls ) {
+		outcome = { label : c.label, status : "", error : "", bytes : 0 };
+		try {
+			r = "";
+			bx:http url="#c.url#" timeout="#c.timeout#" result="r";
+			outcome.status = r.statusCode;
+			outcome.bytes = len( r.fileContent );
+		} catch ( any e ) {
+			outcome.error = e.message;
+		}
+		results.append( outcome );
+	}
+	request.lookAt = [
+		"Bar > HTTP: each call with its status, size and time. The 503 and 429 are failed responses, the slow one is a timeout, the last two never connected.",
+		"The request detail in the console lists Outgoing HTTP issues: a 4xx warns, a 5xx or a transport failure is critical.",
+		"Console > HTTP (the HTTP page): the partner by host and by endpoint, failures and timeouts, the p95 and the latency histogram.",
+		"Ask Lensy: which hosts are failing, and how?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Outgoing HTTP failures</h1>
+<p>Nine calls from one request, each failing a different way. Open the bar's <strong>HTTP</strong> tab, then the console's HTTP page.</p>
+<table>
+	<tr><th>Call</th><th>Result</th></tr>
+	<bx:loop array="#results#" item="o">
+		<tr><td>#encodeForHTML( o.label )#</td><td>#o.error.len() ? "failed: " & encodeForHTML( o.error ) : encodeForHTML( o.status ) & ", " & o.bytes & " bytes"#</td></tr>
+	</bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

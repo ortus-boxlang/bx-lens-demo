@@ -1,0 +1,32 @@
+<bx:script>
+	request.pageTitle = "Checkout";
+	// The cart: 25 orders with their customer names
+	orders = queryExecute( "SELECT id, customer_id, total FROM orders ORDER BY id FETCH FIRST 25 ROWS ONLY" );
+	cart = [];
+	for ( order in orders ) {
+		customer = queryExecute( "SELECT name, country FROM customers WHERE id = :id", { id : order.customer_id } );
+		cart.append( { order : order.id, customer : customer.name, country : customer.country, total : order.total } );
+	}
+	// Shipping quote from the carrier
+	quote = "";
+	bx:http url="http://localhost:#cgi.server_port#/api/upstream.json.bxm?mode=delay&ms=1200" timeout="5" result="quote";
+	// Tax per country: meant to be cached, but the result is never stored
+	taxCache = cache();
+	tax = {};
+	for ( line in cart ) {
+		if ( !taxCache.get( "tax." & line.country ).isPresent() ) {
+			sleep( 40 );
+			tax[ line.country ] = 0.07;
+		}
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Checkout</h1>
+<p>#cart.len()# lines. Shipping quote: #quote.statusCode#.</p>
+<table>
+	<tr><th>Order</th><th>Customer</th><th>Country</th><th>Total</th></tr>
+	<bx:loop array="#cart#" item="l"><tr><td>#l.order#</td><td>#encodeForHTML( l.customer )#</td><td>#l.country#</td><td>#l.total#</td></tr></bx:loop>
+</table>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

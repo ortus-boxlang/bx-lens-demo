@@ -5,6 +5,7 @@
 	stateful = scenarios.stateful();
 	// Stateless pages: one request, one kind of data
 	stateless = [
+		{ group : "Guided investigations", page : "/investigate/", title : "Three support tickets", look : "Reproduce a problem, then find its cause with BxLens only: slow checkout, intermittent payment failures, a site that slows down over time. DEMO.md has the answer key." },
 		{ group : "The bar (one request)", page : "/orders.bxm", title : "Healthy page", look : "Green strip, one joined query, lensMeasure, cache getOrSet, messages." },
 		{ group : "The bar (one request)", page : "/n-plus-one.bxm", title : "N+1 queries", look : "Bar > Queries (repeated statement). Console > Requests > Issues, Queries." },
 		{ group : "The bar (one request)", page : "/slow.bxm", title : "Slow query", look : "Critical slow query. Console > Queries ranked by total time." },
@@ -13,6 +14,9 @@
 		{ group : "The bar (one request)", page : "/error.bxm", title : "Uncaught error", look : "Core error page has no bar. Console > Requests (status 500), Errors." },
 		{ group : "The bar (one request)", page : "/http.bxm", title : "Outgoing HTTP", look : "Bar > HTTP: one 200, one 404." },
 		{ group : "The bar (one request)", page : "/http-loop.bxm", title : "HTTP loop", look : "22 calls to one endpoint plus one that cannot connect. Console HTTP." },
+		{ group : "The bar (one request)", page : "/http-failures.bxm", title : "Outgoing HTTP failures", look : "Nine calls: 503, 429, a timeout, a redirect, a large body, 404, a host that does not exist and a refused connection. Bar > HTTP, console HTTP page." },
+		{ group : "The bar (one request)", page : "/security.bxm?variant=insecure", title : "Security notes", look : "Console > Requests > Issues: security headers and cookie flags missing. Compare with ?variant=hardened." },
+		{ group : "The bar (one request)", page : "/cost.bxm?mode=both", title : "Request cost", look : "Bar > Request (BoxLang+): CPU time and memory allocated. Try ?mode=light, cpu, memory and both." },
 		{ group : "The bar (one request)", page : "/cache.bxm", title : "Cache hits and misses", look : "Bar > Cache. Console > Caches." },
 		{ group : "The bar (one request)", page : "/cache-churn.bxm", title : "Cache churn", look : "Console > Caches: hit rate falls, evictions and misses grow." },
 		{ group : "The bar (one request)", page : "/timers.bxm", title : "Timers and messages", look : "Bar > Timers, Messages. lensStart, lensMeasure, lensDump." },
@@ -36,6 +40,7 @@
 		{ group : "Runtime and ops", page : "/errors/index.bxm", title : "Error catalog", look : "Console > Errors: grouped by cause, counts, samples, redaction." },
 		{ group : "Runtime and ops", page : "/logging.bxm", title : "Logging", look : "Console > Logs: every level, live tail." },
 		{ group : "Runtime and ops", page : "/tasks.bxm", title : "Scheduled tasks", look : "Console > Tasks: healthy, failing, slow, overlapping, paused." },
+		{ group : "AI observability", page : "/ai.bxm", title : "AI agents (mock provider)", look : "Console > AI (BoxLang+): five agents on bx-ai's mock model. Healthy, delegating (nested trace), failing (FlakyReporter), slow (ShippingPlanner), MCP calls, models and cost. No model or key needed." },
 		{ group : "Runtime and ops", page : "/fleet.bxm", title : "Fleet of three servers", look : "BoxLang+: the server selector and the Overview Servers table list web-a (this one) and two mock servers, web-b (healthy) and web-c (degraded). Reports, Errors and HTTP add them up under All servers." },
 		{ group : "Runtime and ops", page : "/watchers.bxm", title : "File watchers", look : "Console: seven watchers. Healthy, debounced, slow, failing (stops itself), chatty (event storm), stopped, and one from boxlang.json." },
 		{ group : "Runtime and ops", page : "/traffic.bxm", title : "Traffic generator", look : "Console > Overview, Reports (p95, p99, status codes, minute series)." },

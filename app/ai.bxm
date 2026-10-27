@@ -1,0 +1,53 @@
+<bx:script>
+	request.pageTitle = "AI agents";
+	agents = application.aiAgents;
+	// Actions, then redirect so a refresh does not repeat them
+	act = url.action ?: "";
+	if ( act == "run" && agents.names().findNoCase( url.agent ?: "" ) ) {
+		session.lastAiRun = agents.run( url.agent );
+		location( url = "/ai.bxm", addToken = false );
+	}
+	if ( act == "rounds" ) {
+		for ( i = 1; i <= min( val( url.n ?: 10 ), 40 ); i++ ) {
+			agents.round();
+		}
+		location( url = "/ai.bxm", addToken = false );
+	}
+	counts = agents.counts();
+	last = session.lastAiRun ?: {};
+	request.lookAt = [
+		"Console > AI (BoxLang+, turn the integration on under Modules > Integrations if it is off): Overview, Agents, MCP, Models, Cost, Runs and Registries.",
+		"Agents: SupportTriage, Coordinator, OrderResearcher, ShippingPlanner and FlakyReporter. Open Coordinator for its Composition diagram and a run whose trace nests the two sub-agents.",
+		"FlakyReporter fails about one run in three: What needs attention names the agent and its tool generate_report, with the error.",
+		"ShippingPlanner's tool takes 2 seconds: the slowest tool, and the Coordinator runs are slow because of it.",
+		"MCP: the two servers this app hosts (bxLensMetrics and bxLensOperations) with their calls and a failure every seventh heartbeat.",
+		"Models and Cost: mock-small and mock-large with the prices set in boxlang.json.",
+		"Ask Lensy: which agent fails the most, and why?"
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>AI agents</h1>
+<p>Five agents run on bx-ai's <strong>mock provider</strong>. The model's words are scripted, but everything around them is real: the agent loop, local tools, the MCP servers this app hosts, delegation to sub-agents, a tool that fails and a tool that is slow.
+No model is called, no key is needed and nothing is billed. Token numbers come from the mock (characters divided by four), and the prices in <code>boxlang.json</code> turn them into a cost.</p>
+<p>The heartbeat task of the scheduler runs one round (SupportTriage, Coordinator, FlakyReporter) every 15 seconds. To fill the AI page quickly, run rounds here.</p>
+
+<p><a class="btn go" href="/ai.bxm?action=rounds&n=10">Run 10 rounds</a> <a class="btn go" href="/ai.bxm?action=rounds&n=30">Run 30 rounds</a>
+&nbsp; Runs so far: #counts.total#, failed: #counts.failed#</p>
+
+<table>
+	<tr><th>Agent</th><th>What it does</th><th></th></tr>
+	<tr><td><strong>SupportTriage</strong></td><td>Healthy. Looks up a customer and the stock with two local tools, then answers.</td><td><a class="btn" href="/ai.bxm?action=run&agent=SupportTriage">Run</a></td></tr>
+	<tr><td><strong>Coordinator</strong></td><td>Delegates to OrderResearcher and ShippingPlanner and combines their answers. Its trace nests the sub-agents.</td><td><a class="btn" href="/ai.bxm?action=run&agent=Coordinator">Run</a></td></tr>
+	<tr><td><strong>OrderResearcher</strong></td><td>Sub-agent. Calls <code>lookup_order_status</code> on the hosted MCP order server.</td><td><a class="btn" href="/ai.bxm?action=run&agent=OrderResearcher">Run</a></td></tr>
+	<tr><td><strong>ShippingPlanner</strong></td><td>Sub-agent. Its carrier tool takes 2 seconds.</td><td><a class="btn" href="/ai.bxm?action=run&agent=ShippingPlanner">Run</a></td></tr>
+	<tr><td><strong>FlakyReporter</strong></td><td>Failing. Its report tool returns a 503 on every third call, and the run fails with it.</td><td><a class="btn" href="/ai.bxm?action=run&agent=FlakyReporter">Run</a></td></tr>
+</table>
+
+<bx:if !last.isEmpty()>
+	<h2>Last run</h2>
+	<p><strong>#encodeForHTML( last.agent )#</strong> #last.ok ? 'finished' : 'failed'# in #last.ms# ms:
+	#encodeForHTML( last.ok ? last.answer : last.error )#</p>
+</bx:if>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />
