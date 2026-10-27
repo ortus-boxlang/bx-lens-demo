@@ -1,0 +1,27 @@
+<bx:script>
+	// A stand-in for a partner API that fails in different ways: ?mode=ok|503|429|slow|delay&ms=N|redirect|big
+	mode = url.mode ?: "ok";
+	if ( mode == "slow" ) {
+		sleep( 3000 );
+	} else if ( mode == "delay" ) {
+		sleep( min( val( url.ms ?: 500 ), 5000 ) );
+	}
+</bx:script>
+<bx:if mode == "503"><bx:header statusCode="503" statusText="Service Unavailable" /></bx:if>
+<bx:if mode == "429"><bx:header statusCode="429" statusText="Too Many Requests" /><bx:header name="Retry-After" value="30" /></bx:if>
+<bx:if mode == "redirect"><bx:location url="/api/rates.json.bxm" statusCode="302" addToken="false" /></bx:if>
+<bx:content type="application/json" /><bx:script>
+	if ( mode == "503" ) {
+		writeOutput( jsonSerialize( { error : "upstream unavailable" } ) );
+	} else if ( mode == "429" ) {
+		writeOutput( jsonSerialize( { error : "rate limit exceeded", retryAfterSeconds : 30 } ) );
+	} else if ( mode == "big" ) {
+		rows = [];
+		for ( n = 1; n <= 4000; n++ ) {
+			rows.append( { id : n, note : repeatString( "x", 60 ) } );
+		}
+		writeOutput( jsonSerialize( { rows : rows } ) );
+	} else {
+		writeOutput( jsonSerialize( { ok : true, mode : mode } ) );
+	}
+</bx:script>

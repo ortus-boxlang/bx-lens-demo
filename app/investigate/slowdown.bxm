@@ -1,0 +1,20 @@
+<bx:script>
+	request.pageTitle = "Product search";
+	application.investigation = application.investigation ?: { payments : 0, leak : [] };
+	// "Remember" every search result for next time. Nothing ever removes them.
+	if ( application.investigation.leak.len() < 300 ) {
+		application.investigation.leak.append( { query : "kettle", rows : repeatString( "result row ", 24000 ) } );
+	}
+	// And look through everything remembered, on every request
+	remembered = application.investigation.leak.len();
+	checksum = 0;
+	for ( i = 1; i <= remembered * 4000; i++ ) {
+		checksum += i mod 7;
+	}
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Product search</h1>
+<p>Found 12 products for "kettle".</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

@@ -1,0 +1,36 @@
+<bx:script>
+	mode = url.mode ?: "light";
+	request.pageTitle = "Request cost";
+	started = getTickCount();
+	// Light: almost nothing. Cpu: a hot loop. Memory: allocate a lot and keep it until the end of the request. Both: the two together.
+	hold = [];
+	acc = 0;
+	if ( mode == "cpu" || mode == "both" ) {
+		end = getTickCount() + 600;
+		while ( getTickCount() < end ) {
+			acc += sqr( randRange( 1, 1000000 ) ) * randRange( 1, 9 );
+		}
+	}
+	if ( mode == "memory" || mode == "both" ) {
+		for ( i = 1; i <= 160; i++ ) {
+			hold.append( repeatString( "x", 524288 ) & i );
+		}
+	}
+	request.lookAt = [
+		"Bar > Request (BoxLang+): the request cost, CPU time and memory allocated by the request thread. Compare light, cpu, memory and both.",
+		"cpu: about 600 ms of wall time, nearly all of it CPU. memory: about 80 MB allocated and held until the request ends. Compare what each one costs against its duration.",
+		"Console > Requests: sort or compare the same URL with different modes. Console > In flight: the cpu variant shows a live stack in the loop."
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Request cost: #mode#</h1>
+<p>#mode == "light" ? "A cheap request." : "Took " & ( getTickCount() - started ) & " ms. Held " & hold.len() & " strings of about 0.5 MB."#</p>
+<p>
+	<a class="btn" href="/cost.bxm?mode=light">light</a>
+	<a class="btn go" href="/cost.bxm?mode=cpu">cpu</a>
+	<a class="btn go" href="/cost.bxm?mode=memory">memory</a>
+	<a class="btn go" href="/cost.bxm?mode=both">both</a>
+</p>
+</bx:output>
+<bx:include template="/includes/footer.bxm" />

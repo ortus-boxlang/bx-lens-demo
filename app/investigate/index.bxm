@@ -1,0 +1,60 @@
+<bx:script>
+	request.pageTitle = "Investigations";
+	request.lookAt = [
+		"Treat each ticket as a real support case: reproduce it, then use only BxLens to find the cause. The answer key is in DEMO.md.",
+		"Start from the console Overview or Requests, not from the code."
+	];
+	tickets = [
+		{
+			id : "checkout", title : 'Ticket 1: "Checkout takes forever"',
+			story : "Customers say the checkout page is slow, but it never errors. Nothing was deployed this week.",
+			path : "/investigate/checkout.bxm", count : 6, par : 1
+		},
+		{
+			id : "payments", title : 'Ticket 2: "Some payments fail, then work if I retry"',
+			story : "About one payment in four fails with an error, and under load it gets worse. Retrying usually works.",
+			path : "/investigate/payments.bxm", count : 24, par : 8
+		},
+		{
+			id : "slowdown", title : 'Ticket 3: "The site gets slower the longer it runs"',
+			story : "After a restart the page is fast. By the afternoon it is crawling, and operations say the server memory keeps climbing.",
+			path : "/investigate/slowdown.bxm", count : 120, par : 4
+		}
+	];
+</bx:script>
+<bx:include template="/includes/header.bxm" />
+<bx:output>
+<h1>Guided investigations</h1>
+<p>Three support tickets. Each button reproduces the problem from your browser. Then find the cause with BxLens, without reading the code.
+<a class="btn reset" href="/control.bxm?action=resetAll">Reset all</a> clears the third one.</p>
+<bx:loop array="#tickets#" item="t">
+	<h2>#t.title#</h2>
+	<p>#t.story#</p>
+	<p>
+		<button class="btn go repro" data-path="#t.path#" data-count="#t.count#" data-par="#t.par#" data-out="out-#t.id#">Reproduce (#t.count# requests, #t.par# at once)</button>
+		<a class="btn" href="#t.path#">Open once</a>
+		<span id="out-#t.id#"></span>
+	</p>
+</bx:loop>
+</bx:output>
+<script>
+	document.querySelectorAll( ".repro" ).forEach( function ( b ) {
+		b.addEventListener( "click", function () {
+			var path = b.dataset.path, total = +b.dataset.count, par = +b.dataset.par, out = document.getElementById( b.dataset.out );
+			var sent = 0, done = 0, bad = 0, ms = 0;
+			b.disabled = true;
+			function next() {
+				if ( sent >= total ) { return; }
+				sent++;
+				var t0 = performance.now();
+				fetch( path, { credentials: "same-origin" } ).then( function ( r ) { if ( !r.ok ) { bad++; } } ).catch( function () { bad++; } ).then( function () {
+					ms += performance.now() - t0; done++;
+					out.textContent = done + " of " + total + " done, " + bad + " failed, " + Math.round( ms / done ) + " ms on average";
+					if ( done >= total ) { b.disabled = false; } else { next(); }
+				} );
+			}
+			for ( var i = 0; i < par; i++ ) { next(); }
+		} );
+	} );
+</script>
+<bx:include template="/includes/footer.bxm" />

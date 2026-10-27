@@ -149,6 +149,8 @@ class singleton {
 		for ( var s in stateful() ) {
 			reset( s.id );
 		}
+		// What the guided investigations keep in the application scope
+		application.delete( "investigation" );
 	}
 
 	// ---------------------------------------------------------------- concurrency

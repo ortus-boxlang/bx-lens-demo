@@ -1,0 +1,229 @@
+/**
+ * Five agents on bx-ai's mock provider, so the AI page of BxLens has real work to show and nothing leaves the machine or costs a token.
+ * The mock plays back scripted answers: a model turn can ask for tools, and the agent runs them for real (local tools, the hosted MCP
+ * servers, sub-agents). So the runs, tool calls, MCP calls, delegation, failures and slow calls are real, only the model's words are scripted.
+ * The token numbers come from the mock (characters / 4), not from a model.
+ *
+ * SupportTriage      healthy        two local tools
+ * OrderResearcher    healthy        sub-agent, calls the hosted MCP order server
+ * ShippingPlanner    slow           sub-agent, its tool takes 2 seconds
+ * Coordinator        healthy        delegates to the two sub-agents, a nested trace
+ * FlakyReporter      failing        its tool fails every third call
+ */
+class {
+
+	variables.NAMES  = [ "SupportTriage", "OrderResearcher", "ShippingPlanner", "Coordinator", "FlakyReporter" ];
+	variables.lockName = "demoAiAgents";
+
+	function init( required string ordersUrl ) {
+		variables.ordersUrl = arguments.ordersUrl;
+		variables.models    = {};
+		variables.agents    = {};
+		variables.reportCalls = 0;
+		variables.runs      = { total : 0, failed : 0 };
+		return this;
+	}
+
+	array function names() {
+		return variables.NAMES;
+	}
+
+	struct function counts() {
+		return duplicate( variables.runs );
+	}
+
+	/** One round: the agents that make a typical busy minute. Sub-agents run through the Coordinator. */
+	array function round() {
+		return [ run( "SupportTriage" ), run( "Coordinator" ), run( "FlakyReporter" ) ];
+	}
+
+	/** Runs one agent with its scripted model turns. Never throws: a failed run is part of the data. */
+	struct function run( required string name ) {
+		bx:lock name=variables.lockName type="exclusive" timeout=120 {
+			build();
+			var started = getTickCount();
+			var result  = { agent : arguments.name, ok : true, answer : "", error : "", ms : 0 };
+			variables.runs.total++;
+			try {
+				script( arguments.name );
+				result.answer = variables.agents[ arguments.name ].run( prompt( arguments.name ) );
+				if ( !isSimpleValue( result.answer ) ) { result.answer = result.answer.toString(); }
+			} catch ( any e ) {
+				result.ok    = false;
+				result.error = e.message;
+				variables.runs.failed++;
+			}
+			result.ms = getTickCount() - started;
+			return result;
+		}
+	}
+
+	// ---- scripted model turns ----
+
+	private string function prompt( required string name ) {
+		switch ( arguments.name ) {
+			case "SupportTriage": return "Customer 42 asks where order 1017 is and whether the blue kettle is in stock.";
+			case "Coordinator": return "Order 1017 is late. Find out where it is and what a replacement would cost to ship.";
+			case "FlakyReporter": return "Build the weekly sales report for the north region.";
+		}
+		return "Go.";
+	}
+
+	/** Loads the model turns each agent will play back on its next run. */
+	private function script( required string name ) {
+		switch ( arguments.name ) {
+			case "SupportTriage":
+				playback( "SupportTriage", [
+					{ toolCalls : [ { name : "lookup_customer", arguments : { customerId : 42 } } ] },
+					{ toolCalls : [ { name : "check_inventory", arguments : { sku : "KETTLE-BLUE" } } ] },
+					"Customer 42 (Ada Lovelace, gold tier) has order 1017 in transit. The blue kettle is in stock (14 units)."
+				] );
+				break;
+			case "OrderResearcher":
+				playback( "OrderResearcher", [
+					{ toolCalls : [ { name : "lookup_order_status", arguments : { orderId : 1017 } } ] },
+					"Order 1017 is processing and has not left the warehouse."
+				] );
+				break;
+			case "ShippingPlanner":
+				playback( "ShippingPlanner", [
+					{ toolCalls : [ { name : "estimate_shipping", arguments : { weightKg : 2.5, expedited : true } } ] },
+					"Expedited shipping for 2.5 kg is 12.38 USD."
+				] );
+				break;
+			case "Coordinator":
+				script( "OrderResearcher" );
+				script( "ShippingPlanner" );
+				playback( "Coordinator", [
+					{ toolCalls : [
+						{ name : delegateTool( "OrderResearcher" ), arguments : { task : "Where is order 1017?" } },
+						{ name : delegateTool( "ShippingPlanner" ), arguments : { task : "Cost to ship a 2.5 kg replacement, expedited" } }
+					] },
+					"Order 1017 is still in the warehouse. A replacement would cost 12.38 USD expedited."
+				] );
+				break;
+			case "FlakyReporter":
+				playback( "FlakyReporter", [
+					{ toolCalls : [ { name : "generate_report", arguments : { region : "north" } } ] },
+					"The weekly report for the north region is ready."
+				] );
+				break;
+		}
+	}
+
+	private function playback( required string name, required array turns ) {
+		variables.models[ arguments.name ].getService().setResponses( arguments.turns );
+	}
+
+	/** bx-ai names the delegation tool of a sub-agent after the slug of its name. */
+	private string function delegateTool( required string name ) {
+		return "delegate_to_" & arguments.name.slugify();
+	}
+
+	// ---- the agents ----
+
+	private function build() {
+		if ( !variables.agents.isEmpty() ) {
+			return;
+		}
+		var model = ( name, modelName ) => {
+			variables.models[ name ] = aiModel( provider = "mock", params = { model : modelName } );
+			return variables.models[ name ];
+		};
+
+		variables.agents[ "SupportTriage" ] = aiAgent(
+			name         = "SupportTriage",
+			description  = "Answers a customer question from their account and the stock",
+			instructions = "Look up the customer and the stock before answering. Keep the answer to two sentences.",
+			model        = model( "SupportTriage", "mock-small" ),
+			tools        = [ customerTool(), inventoryTool() ],
+			register     = true,
+			module       = "demo"
+		);
+		variables.agents[ "OrderResearcher" ] = aiAgent(
+			name         = "OrderResearcher",
+			description  = "Finds the state of an order through the order MCP server",
+			instructions = "Use the MCP tools to answer. Do not invent order data.",
+			model        = model( "OrderResearcher", "mock-small" ),
+			mcpServers   = [ { url : variables.ordersUrl, toolNames : [ "lookup_order_status", "calculate_shipping" ] } ],
+			register     = true,
+			module       = "demo"
+		);
+		variables.agents[ "ShippingPlanner" ] = aiAgent(
+			name         = "ShippingPlanner",
+			description  = "Estimates what shipping a parcel costs",
+			instructions = "Estimate shipping with the carrier tool.",
+			model        = model( "ShippingPlanner", "mock-small" ),
+			tools        = [ shippingTool() ],
+			register     = true,
+			module       = "demo"
+		);
+		variables.agents[ "Coordinator" ] = aiAgent(
+			name         = "Coordinator",
+			description  = "Splits a late order into where it is and what a replacement costs",
+			instructions = "Delegate to the sub-agents and combine their answers in one paragraph.",
+			model        = model( "Coordinator", "mock-large" ),
+			subAgents    = [ variables.agents.OrderResearcher, variables.agents.ShippingPlanner ],
+			register     = true,
+			module       = "demo"
+		);
+		variables.agents[ "FlakyReporter" ] = aiAgent(
+			name         = "FlakyReporter",
+			description  = "Builds a sales report with a report service that is not reliable",
+			instructions = "Generate the report with the report tool and say when it is ready.",
+			model        = model( "FlakyReporter", "mock-small" ),
+			tools        = [ reportTool() ],
+			register     = true,
+			module       = "demo"
+		);
+	}
+
+	private function customerTool() {
+		return aiTool(
+			name : "lookup_customer",
+			description : "Look up a customer",
+			callable : ( required numeric customerId ) => ( { id : customerId, name : "Ada Lovelace", tier : "gold", openOrders : 1 } )
+		).describeArg( "customerId", "Customer id" );
+	}
+
+	private function inventoryTool() {
+		return aiTool(
+			name : "check_inventory",
+			description : "Check how many units of a product are in stock",
+			callable : ( required string sku ) => ( { sku : sku, inStock : 14 } )
+		).describeArg( "sku", "Product code" );
+	}
+
+	private function shippingTool() {
+		return aiTool(
+			name : "estimate_shipping",
+			description : "Ask the carrier what shipping costs. The carrier API is slow.",
+			callable : ( required numeric weightKg, required boolean expedited ) => {
+				sleep( 2000 );
+				return { weightKg : weightKg, cost : round( ( max( 4, weightKg * 1.75 ) + ( expedited ? 8 : 0 ) ) * 100 ) / 100, currency : "USD" };
+			}
+		).describeArg( "weightKg", "Weight in kilograms" ).describeArg( "expedited", "Expedited delivery" );
+	}
+
+	/** Fails every third call, like a report service that is down for a third of the requests. */
+	private function reportTool() {
+		var fleet = this;
+		return aiTool(
+			name : "generate_report",
+			description : "Build a sales report for a region",
+			callable : ( required string region ) => {
+				if ( fleet.nextReportCall() mod 3 == 0 ) {
+					throw( type = "ReportServiceError", message = "Report service returned 503 for region #region#" );
+				}
+				return { region : region, rows : 128, status : "built" };
+			}
+		).describeArg( "region", "Region name" );
+	}
+
+	/** Public so the report tool can count its calls. */
+	numeric function nextReportCall() {
+		variables.reportCalls++;
+		return variables.reportCalls;
+	}
+
+}

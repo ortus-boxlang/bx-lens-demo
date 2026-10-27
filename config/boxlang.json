@@ -39,6 +39,10 @@
 					"functions": { "enabled": true, "max": 500 },
 					"logs": { "enabled": true },
 					"bifs": { "enabled": true },
+					"aiobs": {
+						"enabled": true, "attach": true, "content": "preview", "minCalls": 10,
+						"prices": "{\"mock/mock-small\":{\"in\":0.15,\"out\":0.6},\"mock/mock-large\":{\"in\":3,\"out\":15}}"
+					},
 					"scopes": { "enabled": true, "url": true, "form": true, "session": true, "request": true }
 				}
 			}
