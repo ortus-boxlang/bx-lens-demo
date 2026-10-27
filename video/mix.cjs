@@ -94,10 +94,10 @@ if ( VOICE ) {
 	inputs.push( '-i', loop );
 	f.push( `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${ total.toFixed( 3 ) },asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=${ ( total - 3.5 ).toFixed( 2 ) }:d=3.5,loudnorm=I=-14:TP=-1.5:LRA=11[aout]` );
 	const style = "FontName=Inter,FontSize=10,PrimaryColour=&HFFFFFF&,BorderStyle=1,Outline=0,Shadow=0,Alignment=2,MarginV=4,MarginL=40,MarginR=40";
-	f.push( `[0:v]fps=30,scale=1700:956,pad=1920:1080:110:0:color=0x060f1b,setpts=PTS-STARTPTS,subtitles='${ srtFile.replace( /'/g, "\\'" ) }':original_size=1920x1080:force_style='${ style }',format=yuv420p[vout]` );
+	f.push( `[0:v]fps=30,scale=1700:956,pad=1920:1080:110:0:color=0x060f1b,setpts=PTS-STARTPTS,subtitles=bxlens-demo-walkthrough.srt:original_size=1920x1080:force_style='${ style }',format=yuv420p[vout]` );
 }
 const mp4 = path.join( OUT, VOICE ? 'bxlens-demo-walkthrough.mp4' : 'bxlens-demo-walkthrough-captions.mp4' );
-run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ] );
+run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ], { cwd: OUT } );  // run in OUT so the captions file is found by its plain name, with nothing to escape
 run( 'ffmpeg', [ '-v', 'error', '-y', '-ss', '48', '-i', mp4, '-frames:v', '1', path.join( OUT, 'poster.jpg' ) ] );
 
 // 5. What the licenses ask for
