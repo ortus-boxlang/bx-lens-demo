@@ -10,6 +10,8 @@ const path = require( 'path' );
 const cp = require( 'child_process' );
 
 const OUT = path.resolve( process.env.OUT || 'out' );
+// VOICE=0 builds the video without the voice-over: the music, and the narration as captions burned into a strip under the picture
+const VOICE = process.env.VOICE !== '0';
 const tl = JSON.parse( fs.readFileSync( path.join( OUT, 'timeline.json' ), 'utf8' ) );
 const narration = JSON.parse( fs.readFileSync( path.join( __dirname, 'narration.json' ), 'utf8' ) );
 const run = ( cmd, args, opts = {} ) => {
@@ -51,27 +53,8 @@ let last = '[0]';
 for ( let i = 1; i < reps; i++ ) { parts.push( `${ last }[${ i }]acrossfade=d=2:c1=tri:c2=tri[x${ i }]` ); last = `[x${ i }]`; }
 run( 'ffmpeg', [ '-v', 'error', '-y', ...ins, '-filter_complex', parts.join( ';' ), '-map', last, loop ] );
 
-// 3. The mix
+// 3. The captions: each sentence of the narration, timed across the time its segment would be spoken
 const segs = tl.segments.filter( s => fs.existsSync( path.join( OUT, 'voice', s.id + '.wav' ) ) );
-const inputs = [ '-ss', vStart.toFixed( 3 ), '-t', total.toFixed( 3 ), '-i', screen ];
-segs.forEach( s => inputs.push( '-i', path.join( OUT, 'voice', s.id + '.wav' ) ) );
-inputs.push( '-i', loop );
-const mi = segs.length + 1;
-const f = [];
-segs.forEach( ( s, i ) => {
-	const ms = Math.max( 0, Math.round( ( s.voiceAt - shift ) * 1000 ) );
-	f.push( `[${ i + 1 }:a]aformat=sample_rates=44100:channel_layouts=stereo,adelay=${ ms }|${ ms }[v${ i }]` );
-} );
-f.push( segs.map( ( s, i ) => `[v${ i }]` ).join( '' ) + `amix=inputs=${ segs.length }:normalize=0:dropout_transition=0,apad=whole_dur=${ total.toFixed( 3 ) },atrim=0:${ total.toFixed( 3 ) }[voice]` );
-f.push( '[voice]asplit=2[vo][sc]' );
-f.push( `[${ mi }:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${ total.toFixed( 3 ) },asetpts=PTS-STARTPTS,volume=${ process.env.MUSIC_GAIN || '0.55' }[music]` );
-f.push( '[music][sc]sidechaincompress=threshold=0.012:ratio=9:attack=20:release=500:makeup=1[ducked]' );
-f.push( `[ducked][vo]amix=inputs=2:normalize=0,afade=t=in:d=1.2,afade=t=out:st=${ ( total - 3.2 ).toFixed( 2 ) }:d=3.2,loudnorm=I=-14:TP=-1.5:LRA=11[aout]` );
-f.push( '[0:v]fps=30,scale=1920:1080,format=yuv420p,setpts=PTS-STARTPTS[vout]' );
-const mp4 = path.join( OUT, 'bxlens-demo-walkthrough.mp4' );
-run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ] );
-
-// 4. Captions for YouTube: each sentence of the narration, timed across the time its segment is spoken
 const clock = x => { const ms = Math.round( x * 1000 ); const p = ( n, w = 2 ) => String( n ).padStart( w, '0' ); return `${ p( Math.floor( ms / 3600000 ) ) }:${ p( Math.floor( ms / 60000 ) % 60 ) }:${ p( Math.floor( ms / 1000 ) % 60 ) },${ p( ms % 1000, 3 ) }`; };
 let srt = '', n = 1;
 for ( const s of segs ) {
@@ -85,12 +68,41 @@ for ( const s of segs ) {
 		at += len;
 	}
 }
-fs.writeFileSync( path.join( OUT, 'bxlens-demo-walkthrough.srt' ), srt );
+const srtFile = path.join( OUT, 'bxlens-demo-walkthrough.srt' );
+fs.writeFileSync( srtFile, srt );
+
+// 4. The mix
+const f = [];
+let inputs = [ '-ss', vStart.toFixed( 3 ), '-t', total.toFixed( 3 ), '-i', screen ];
+let mi;
+if ( VOICE ) {
+	segs.forEach( s => inputs.push( '-i', path.join( OUT, 'voice', s.id + '.wav' ) ) );
+	mi = segs.length + 1;
+	segs.forEach( ( s, i ) => {
+		const ms = Math.max( 0, Math.round( ( s.voiceAt - shift ) * 1000 ) );
+		f.push( `[${ i + 1 }:a]aformat=sample_rates=44100:channel_layouts=stereo,adelay=${ ms }|${ ms }[v${ i }]` );
+	} );
+	f.push( segs.map( ( s, i ) => `[v${ i }]` ).join( '' ) + `amix=inputs=${ segs.length }:normalize=0:dropout_transition=0,apad=whole_dur=${ total.toFixed( 3 ) },atrim=0:${ total.toFixed( 3 ) }[voice]` );
+	f.push( '[voice]asplit=2[vo][sc]' );
+	inputs.push( '-i', loop );
+	f.push( `[${ mi }:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${ total.toFixed( 3 ) },asetpts=PTS-STARTPTS,volume=${ process.env.MUSIC_GAIN || '0.55' }[music]` );
+	f.push( '[music][sc]sidechaincompress=threshold=0.012:ratio=9:attack=20:release=500:makeup=1[ducked]' );
+	f.push( `[ducked][vo]amix=inputs=2:normalize=0,afade=t=in:d=1.2,afade=t=out:st=${ ( total - 3.2 ).toFixed( 2 ) }:d=3.2,loudnorm=I=-14:TP=-1.5:LRA=11[aout]` );
+	f.push( '[0:v]fps=30,scale=1920:1080,format=yuv420p,setpts=PTS-STARTPTS[vout]' );
+} else {
+	// Music only. The picture sits in a frame with a strip under it, and the narration is written in the strip so no caption covers the demo.
+	inputs.push( '-i', loop );
+	f.push( `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:${ total.toFixed( 3 ) },asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=${ ( total - 3.5 ).toFixed( 2 ) }:d=3.5,loudnorm=I=-14:TP=-1.5:LRA=11[aout]` );
+	const style = "FontName=Inter,FontSize=10,PrimaryColour=&HFFFFFF&,BorderStyle=1,Outline=0,Shadow=0,Alignment=2,MarginV=4,MarginL=40,MarginR=40";
+	f.push( `[0:v]fps=30,scale=1700:956,pad=1920:1080:110:0:color=0x060f1b,setpts=PTS-STARTPTS,subtitles='${ srtFile.replace( /'/g, "\\'" ) }':original_size=1920x1080:force_style='${ style }',format=yuv420p[vout]` );
+}
+const mp4 = path.join( OUT, VOICE ? 'bxlens-demo-walkthrough.mp4' : 'bxlens-demo-walkthrough-captions.mp4' );
+run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ] );
 run( 'ffmpeg', [ '-v', 'error', '-y', '-ss', '48', '-i', mp4, '-frames:v', '1', path.join( OUT, 'poster.jpg' ) ] );
 
 // 5. What the licenses ask for
 fs.writeFileSync( path.join( OUT, 'credits.txt' ), [
-	'Voice: ' + narration.voice + ' (Piper), made with bx-audio. See https://bxaudio.boxlang.io/voices/ for the license of the voice and the credit it asks for.',
+	...( VOICE ? [ 'Voice: ' + narration.voice + ' (Piper), made with bx-audio. See https://bxaudio.boxlang.io/voices/ for the license of the voice and the credit it asks for.' ] : [ 'No voice-over in this version: the narration is shown as captions.' ] ),
 	'Music: the synthwave piece of bx-audio (original, made from code, no samples). https://bxaudio.boxlang.io/examples/',
 	'',
 ].join( '\n' ) );

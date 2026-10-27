@@ -28,6 +28,8 @@ BASE=http://127.0.0.1:8088 CHROMIUM=/path/to/chrome OUT=out ./build.sh
 
 The result is `out/bxlens-demo-walkthrough.mp4`, the `.srt` captions, a poster and `credits.txt`.
 
+Without the voice-over: `VOICE=0 OUT=out node mix.cjs` after a build writes `bxlens-demo-walkthrough-captions.mp4`, the same picture with the music only and the narration as captions in a strip under the picture (the spoken segments are still used for the timing).
+
 ## Changing it
 
 * **The words or the voice**: edit `narration.json` and run `build.sh` again. The recording follows the length of the voice, so it is recorded again too.
