@@ -18,7 +18,7 @@ const ONLY = ( process.env.ONLY || '' ).split( ',' ).filter( Boolean );
 const narration = JSON.parse( fs.readFileSync( path.join( __dirname, 'narration.json' ), 'utf8' ) );
 
 /** Length of a spoken segment in seconds. */
-const seconds = id => parseFloat( cp.execSync( `ffprobe -v error -show_entries format=duration -of csv=p=0 "${ OUT }/voice/${ id }.wav"` ).toString() );
+const seconds = id => parseFloat( cp.execFileSync( 'ffprobe', [ '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join( OUT, 'voice', id + '.wav' ) ] ).toString() );
 
 // What happens on screen for each segment. The runner holds the last frame until the voice has finished.
 const acts = {
