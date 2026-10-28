@@ -4,6 +4,7 @@ narration = jsonDeserialize( fileRead( getSystemSetting( "NARRATION" ) ) );
 outDir = getSystemSetting( "OUT" ) & "/voice";
 directoryCreate( outDir, true, true );
 for ( seg in narration.segments ) {
+	if ( !seg.keyExists( "text" ) ) { continue; }
 	audio = audioSpeak( text = seg.text, voice = narration.voice, speed = narration.speed, pauses = narration.pauses );
 	audioSave( audio, outDir & "/" & seg.id & ".wav" );
 	println( "spoke " & seg.id );

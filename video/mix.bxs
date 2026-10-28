@@ -1,0 +1,204 @@
+/**
+ * Puts the music and the captions (or the voice) on the recording. Usage: OUT=out boxlang mix.bxs
+ *   in:  OUT/cast.json and OUT/frames (the screencast), OUT/timeline.json, OUT/voice/*.wav, OUT/music.wav (a bx-audio piece)
+ *   out: OUT/bxlens-demo-walkthrough.mp4 (or -captions.mp4), .srt, poster.jpg
+ * The picture is built from the frames of the screencast and the real time of each one, the music is looped to the length of the picture, and the
+ * mix is mastered to -14 LUFS (what YouTube plays at) with a true peak ceiling of -1.5 dB.
+ *
+ *   VOICE=0   no voice-over: the music, and the narration as styled captions in a strip under the picture, with an act marker, progress dots
+ *             and the animated opening and closing slides
+ *   REUSE=1   keep OUT/screen.mp4 from an earlier run (when only the captions or the slides changed), and encode faster
+ *   STRIPS_ONLY=1  with REUSE: draw the strips again but not the slides
+ */
+videoDir  = getDirectoryFromPath( getCurrentTemplatePath() )
+OUT       = createObject( "java", "java.io.File" ).init( getSystemSetting( "OUT", "out" ) ).getAbsolutePath()
+VOICE     = getSystemSetting( "VOICE", "1" ) != "0"
+REUSE     = len( getSystemSetting( "REUSE", "" ) ) > 0
+tl        = jsonDeserialize( fileRead( OUT & "/timeline.json" ) )
+narration = jsonDeserialize( fileRead( videoDir & "narration.json" ) )
+shell     = new lib.Shell()
+fx        = ( n, d = 3 ) => shell.fixed( n, d )
+run       = ( cmd, cwd = "" ) => shell.run( cmd, cwd )
+
+// -- Helpers ------------------------------------------------------------------------------------------------------------------------------
+function clock( x ) {
+	var ms = round( x * 1000 )
+	var p  = ( v, w = 2 ) => numberFormat( v, repeatString( "0", w ) )
+	return p( int( ms / 3600000 ) ) & ":" & p( int( ms / 60000 ) % 60 ) & ":" & p( int( ms / 1000 ) % 60 ) & "," & p( ms % 1000, 3 )
+}
+function assClock( x ) {
+	var cs = round( x * 100 )
+	var p  = ( v, w = 2 ) => numberFormat( v, repeatString( "0", w ) )
+	return int( cs / 360000 ) & ":" & p( int( cs / 6000 ) % 60 ) & ":" & p( int( cs / 100 ) % 60 ) & "." & p( cs % 100 )
+}
+// A long sentence breaks in two, near the middle and, when it can, after a comma or a full stop
+function splitLine( text ) {
+	if ( len( text ) <= 74 ) { return [ text ] }
+	var middle = len( text ) / 2
+	var best   = -1
+	var bestScore = 1000000000
+	for ( var i = 12; i < len( text ) - 12; i++ ) {
+		if ( mid( text, i + 1, 1 ) != " " ) { continue }
+		var score = abs( i - middle ) - ( reFind( "[,.;]", mid( text, i, 1 ) ) ? 10 : 0 )
+		if ( score < bestScore ) { bestScore = score; best = i }
+	}
+	return [ left( text, best ), mid( text, best + 2, len( text ) ) ]
+}
+function markLine( text ) {
+	return accentRe.matcher( text ).replaceAll( "{\\1c&HB0F51A&}$1{\\1c&HFFFFFF&}" )
+}
+
+// 1. The picture: every frame of the browser screencast has the real time it was shown, so the video is built from the frames and those times
+// and cannot drift from the narration. delta is the video time minus the recorder time.
+cast  = jsonDeserialize( fileRead( OUT & "/cast.json" ) )
+ts0   = cast.frames[ 1 ].ts
+delta = cast.t0epoch - ts0
+list  = [ "ffconcat version 1.0" ]
+for ( i = 1; i <= cast.frames.len(); i++ ) {
+	fr = cast.frames[ i ]
+	// The screencast sends a frame only when the picture changes, so the last one (the closing card) is held until the end of the recording
+	hold = i < cast.frames.len() ? max( 0.001, cast.frames[ i + 1 ].ts - fr.ts ) : max( 0.5, cast.t0epoch + tl.total + 6 - fr.ts )
+	list.append( "file 'frames/" & fr.f & "'" )
+	list.append( "duration " & fx( hold, 4 ) )
+}
+list.append( "file 'frames/" & cast.frames[ cast.frames.len() ].f & "'" )
+fileWrite( OUT & "/frames.txt", list.toList( char( 10 ) ) )
+screen = OUT & "/screen.mp4"
+if ( !( REUSE && fileExists( screen ) ) ) {
+	run( [ "ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", OUT & "/frames.txt", "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-crf", "12", screen ], OUT )
+}
+startB = 1.0                    // recorder time of the first picture we keep: the opening card is up
+vStart = startB + delta         // video time of it
+shift  = startB
+total  = tl.total - shift + 3.5 // seconds of picture we keep, with a tail for the music
+println( cast.frames.len() & " frames, picture starts at " & fx( vStart, 2 ) & "s of the screen video, " & fx( total, 1 ) & "s long" )
+
+// 2. The music, looped to the length with a crossfade between the repeats
+music = OUT & "/music.wav"
+loop  = OUT & "/music-loop.wav"
+mlen  = shell.seconds( music )
+reps  = ceiling( ( total + 4 ) / ( mlen - 2 ) ) + 1
+ins   = []
+parts = []
+for ( i = 1; i <= reps; i++ ) { ins.append( "-i" ); ins.append( music ) }
+last = "[0]"
+for ( i = 1; i < reps; i++ ) {
+	parts.append( last & "[" & i & "]acrossfade=d=2:c1=tri:c2=tri[x" & i & "]" )
+	last = "[x" & i & "]"
+}
+run( [ "ffmpeg", "-v", "error", "-y" ].append( ins, true ).append( [ "-filter_complex", parts.toList( ";" ), "-map", last, loop ], true ) )
+
+// 3. The captions: each sentence of the narration, timed across the time its segment would be spoken
+segs = tl.segments.filter( ( s ) => fileExists( OUT & "/voice/" & s.id & ".wav" ) )
+sentencePattern = createObject( "java", "java.util.regex.Pattern" ).compile( "(?<=[.?!])\s+" )  // after the mark and a space, so a web address stays whole
+srt    = ""
+n      = 1
+events = []   // from, to and text of every sentence, for the styled captions
+for ( s in segs ) {
+	text      = narration.segments.filter( ( x ) => x.id == s.id )[ 1 ].text
+	sentences = []
+	for ( piece in sentencePattern.split( text ) ) { sentences.append( piece ) }
+	chars     = 0
+	for ( x in sentences ) { chars += len( x ) }
+	at = s.voiceAt - shift
+	for ( i = 1; i <= sentences.len(); i++ ) {
+		sentence = trim( sentences[ i ] )
+		length   = s.voiceFor * ( len( sentences[ i ] ) / chars )
+		// The last sentence stays on screen until the picture of its segment ends
+		to = i == sentences.len() ? max( at + length, s.end - shift - 0.05 ) : at + length - 0.05
+		srt &= n & char( 10 ) & clock( at ) & " --> " & clock( to ) & char( 10 ) & sentence & char( 10 ) & char( 10 )
+		n++
+		events.append( { "from" : at, "to" : to, "text" : sentence } )
+		at += length
+	}
+}
+fileWrite( OUT & "/bxlens-demo-walkthrough.srt", srt )
+
+// 4. The mix
+f      = []
+inputs = [ "-ss", fx( vStart ), "-t", fx( total ), "-i", screen ]
+if ( VOICE ) {
+	for ( s in segs ) { inputs.append( "-i" ); inputs.append( OUT & "/voice/" & s.id & ".wav" ) }
+	mi = segs.len() + 1
+	for ( i = 1; i <= segs.len(); i++ ) {
+		ms = max( 0, round( ( segs[ i ].voiceAt - shift ) * 1000 ) )
+		f.append( "[" & i & ":a]aformat=sample_rates=44100:channel_layouts=stereo,adelay=" & ms & "|" & ms & "[v" & i & "]" )
+	}
+	f.append( segs.map( ( s, i ) => "[v" & i & "]" ).toList( "" ) & "amix=inputs=" & segs.len() & ":normalize=0:dropout_transition=0,apad=whole_dur=" & fx( total ) & ",atrim=0:" & fx( total ) & "[voice]" )
+	f.append( "[voice]asplit=2[vo][sc]" )
+	inputs.append( "-i" ); inputs.append( loop )
+	f.append( "[" & mi & ":a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:" & fx( total ) & ",asetpts=PTS-STARTPTS,volume=" & getSystemSetting( "MUSIC_GAIN", "0.55" ) & "[music]" )
+	f.append( "[music][sc]sidechaincompress=threshold=0.012:ratio=9:attack=20:release=500:makeup=1[ducked]" )
+	f.append( "[ducked][vo]amix=inputs=2:normalize=0,afade=t=in:d=1.2,afade=t=out:st=" & fx( total - 3.2, 2 ) & ":d=3.2,loudnorm=I=-14:TP=-1.5:LRA=11[aout]" )
+	f.append( "[0:v]fps=30,scale=1920:1080,format=yuv420p,setpts=PTS-STARTPTS[vout]" )
+} else {
+	// Music only. The picture sits in a frame with a strip under it. The strip has the captions (styled), the act marker and the progress dots,
+	// and the opening and closing slides are animated (lib/Graphics.bx draws them). The number and the name of every act are in narration.json.
+	acts = narration.segments.filter( ( x ) => x.keyExists( "card" ) ).map( ( x ) => {
+		return { "id" : x.id, "n" : x.n, "name" : x.name, "start" : tl.segments.filter( ( y ) => y.id == x.id )[ 1 ].start - shift }
+	} )
+	s01     = tl.segments.filter( ( x ) => x.id == "01-intro" )[ 1 ]
+	lastId  = narration.segments[ narration.segments.len() ].id
+	sEnd    = tl.segments.filter( ( x ) => x.id == lastId )[ 1 ]
+	openDur = s01.start - shift + 8.8
+	closeFrom = sEnd.start - shift
+	closeDur  = total - closeFrom
+	spec = { "acts" : acts.map( ( x ) => { return { "n" : x.n, "name" : x.name } } ), "of" : acts.len(), "open" : openDur, "close" : closeDur }
+	fileWrite( OUT & "/graphics.json", jsonSerialize( spec ) )
+	new lib.Graphics().render( OUT, spec, len( getSystemSetting( "STRIPS_ONLY", "" ) ) > 0 )
+
+	// The captions: Inter bold, key terms in the accent color, a fade in and out, a break into two lines when long
+	accents = jsonDeserialize( fileRead( videoDir & "accents.json" ) )
+	accents.sort( ( a, b ) => len( b ) - len( a ) )
+	Pattern  = createObject( "java", "java.util.regex.Pattern" )
+	accentRe = Pattern.compile( "(?<![\w.])(" & accents.map( ( x ) => Pattern.quote( x ) ).toList( "|" ) & ")(?![\w])", Pattern.CASE_INSENSITIVE )
+	head = "[Script Info]" & char( 10 ) & "ScriptType: v4.00+" & char( 10 ) & "PlayResX: 1920" & char( 10 ) & "PlayResY: 1080" & char( 10 ) & "WrapStyle: 2" & char( 10 ) & "ScaledBorderAndShadow: yes" & char( 10 ) & char( 10 )
+		& "[V4+ Styles]" & char( 10 ) & "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding" & char( 10 )
+		& "Style: Cap,Inter,33,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,0,2,5,0,0,0,1" & char( 10 ) & char( 10 )
+		& "[Events]" & char( 10 ) & "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text" & char( 10 )
+	lines = events.map( ( e ) => {
+		return "Dialogue: 0," & assClock( e.from ) & "," & assClock( e.to ) & ",Cap,,0,0,0,,{\an5\pos(960,1018)\fad(220,220)}" & splitLine( e.text ).map( ( x ) => markLine( x ) ).toList( "\N" )
+	} )
+	fileWrite( OUT & "/captions.ass", head & lines.toList( char( 10 ) ) & char( 10 ) )
+
+	inputs.append( [ "-i", loop, "-i", OUT & "/slide-open.mp4", "-i", OUT & "/slide-close.mp4" ], true )
+	stripNumbers = [ 0 ]
+	for ( a in acts ) { stripNumbers.append( a.n ) }
+	for ( sn in stripNumbers ) {
+		inputs.append( [ "-loop", "1", "-framerate", "30", "-t", fx( total ), "-i", OUT & "/strip-" & sn & ".png" ], true )
+	}
+	f.append( "[1:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:" & fx( total ) & ",asetpts=PTS-STARTPTS,afade=t=in:d=1.5,afade=t=out:st=" & fx( total - 3.5, 2 ) & ":d=3.5,loudnorm=I=-14:TP=-1.5:LRA=11[aout]" )
+	f.append( "[0:v]fps=30,scale=1700:956,pad=1920:1080:110:0:color=0x060f1b,setpts=PTS-STARTPTS[v0]" )
+	// the slides sit on the picture, 1920 by 956, and the strip goes over the bottom
+	f.append( "[2:v]format=yuva420p,fade=t=out:st=" & fx( openDur - 0.9, 2 ) & ":d=0.9:alpha=1,setpts=PTS-STARTPTS[so]" )
+	f.append( "[3:v]format=yuva420p,fade=t=in:st=0:d=0.9:alpha=1,setpts=PTS-STARTPTS+" & fx( closeFrom ) & "/TB[sc]" )
+	f.append( "[v0][so]overlay=0:0:eof_action=pass[v1]" )
+	f.append( "[v1][sc]overlay=0:0:eof_action=pass:enable='gte(t," & fx( closeFrom ) & ")'[v2]" )
+	cur = "v2"
+	windows = [ { "idx" : 4, "from" : 0, "to" : acts[ 1 ].start } ]
+	for ( i = 1; i <= acts.len(); i++ ) {
+		windows.append( { "idx" : 4 + i, "from" : acts[ i ].start, "to" : i < acts.len() ? acts[ i + 1 ].start : total + 1 } )
+	}
+	for ( i = 1; i <= windows.len(); i++ ) {
+		w = windows[ i ]
+		f.append( "[" & cur & "][" & w.idx & ":v]overlay=0:956:enable='between(t," & fx( w.from ) & "," & fx( w.to ) & ")':shortest=0[s" & i & "]" )
+		cur = "s" & i
+	}
+	f.append( "[" & cur & "]ass=captions.ass,format=yuv420p[vout]" )
+}
+mp4 = OUT & ( VOICE ? "/bxlens-demo-walkthrough.mp4" : "/bxlens-demo-walkthrough-captions.mp4" )
+// run in OUT so the captions file is found by its plain name, with nothing to escape
+run( [ "ffmpeg", "-v", "error", "-y" ].append( inputs, true ).append( [ "-filter_complex", f.toList( ";" ), "-map", "[vout]", "-map", "[aout]", "-c:v", "libx264", "-preset", REUSE ? "faster" : "medium", "-crf", "18", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", mp4 ], true ), OUT )
+run( [ "ffmpeg", "-v", "error", "-y", "-ss", "48", "-i", mp4, "-frames:v", "1", OUT & "/poster.jpg" ] )
+
+// 5. What the licenses ask for
+credits = []
+if ( VOICE ) {
+	credits.append( "Voice: " & narration.voice & " (Piper), made with bx-audio. See https://bxaudio.boxlang.io/voices/ for the license of the voice and the credit it asks for." )
+} else {
+	credits.append( "No voice-over in this version: the narration is shown as captions." )
+}
+credits.append( "Music: the synthwave piece of bx-audio (original, made from code, no samples). https://bxaudio.boxlang.io/examples/" )
+credits.append( "" )
+fileWrite( OUT & "/credits.txt", credits.toList( char( 10 ) ) )
+println( "wrote " & mp4 )

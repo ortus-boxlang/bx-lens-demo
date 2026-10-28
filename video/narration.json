@@ -15,6 +15,16 @@
 			"text": "The demo is a small shop with a control panel. Every page creates one kind of problem, so there is always something to find."
 		},
 		{
+			"id": "a1",
+			"card": {
+				"t": "<b>1</b> &nbsp;The bar",
+				"s": "One request, everything about it"
+			},
+			"hold": 2.6,
+			"n": 1,
+			"name": "The bar"
+		},
+		{
 			"id": "03-bar",
 			"text": "Start with the bar. It sits on every page, and answers one question. What happened in this request?"
 		},
@@ -39,6 +49,16 @@
 			"text": "A caught exception still counts. The bar opens on the problem, by itself."
 		},
 		{
+			"id": "a2",
+			"card": {
+				"t": "<b>2</b> &nbsp;The console",
+				"s": "The whole server at a glance"
+			},
+			"hold": 2.6,
+			"n": 2,
+			"name": "The console"
+		},
+		{
 			"id": "09-overview",
 			"text": "Now the console. One page for the whole server. The overview shows requests, errors, response time, and what needs your attention first."
 		},
@@ -47,20 +67,72 @@
 			"text": "At the top, the servers. This one is live. Two more are saved in their own folders. One of them is struggling, with high heap, failing tasks, and a deadlock."
 		},
 		{
+			"id": "a3",
+			"card": {
+				"t": "<b>3</b> &nbsp;Requests, in depth",
+				"s": "Every request, every section"
+			},
+			"hold": 2.6,
+			"n": 3,
+			"name": "Requests, in depth"
+		},
+		{
+			"id": "11a-list",
+			"text": "Every request is kept. Filter by address, by status, or by tag. ColdBox requests have their own filter, and each row shows its event."
+		},
+		{
 			"id": "11-requests",
-			"text": "Every request is kept. This checkout is slow, and the issues list explains why. A repeated query, and a slow outgoing call."
+			"text": "Open one. This checkout is slow, and the issues explain why. A repeated query, a slow template, and a slow outgoing call."
 		},
 		{
 			"id": "11b-security",
 			"text": "The same list carries security notes. Missing headers, and cookies without safe flags."
 		},
 		{
+			"id": "11c-timeline",
+			"text": "The timeline shows every span. Templates, queries, and outgoing calls, each with its own color. Click a row for its details."
+		},
+		{
+			"id": "11d-sections",
+			"text": "Open every section. The queries, with their parameters and the line that ran them. Exceptions. Outgoing calls. Messages, and timers."
+		},
+		{
+			"id": "11e-scopes",
+			"text": "Then the request itself, with its headers, and the scopes, with secrets redacted. The built in functions it called, and the runtime, with the cost of this one request."
+		},
+		{
+			"id": "11f-coldbox",
+			"text": "A ColdBox request knows even more. The event, the route, the layout, and every view. This one rendered a partial fifteen times, and BxLens says so."
+		},
+		{
+			"id": "11g-inflight",
+			"text": "In flight shows what is running right now, longest first, with its thread and its queries so far. Open it when the server feels stuck."
+		},
+		{
+			"id": "a4",
+			"card": {
+				"t": "<b>4</b> &nbsp;Finding problems",
+				"s": "Errors, runtime health, queries and calls"
+			},
+			"hold": 2.6,
+			"n": 4,
+			"name": "Finding problems"
+		},
+		{
 			"id": "12-errors",
 			"text": "Errors are grouped by cause, with counts, and a sample with its stack. Secrets are removed before anything is stored."
 		},
 		{
+			"id": "12b-sample",
+			"text": "Open a group for the stack, the request, the tags, and every event. Resolve it, and BxLens tells you if it comes back."
+		},
+		{
 			"id": "13-reports",
 			"text": "Reports give the percentiles, the status codes, and the slowest addresses."
+		},
+		{
+			"id": "13b-boards",
+			"text": "Boards turn the same numbers into charts, so a trend is easy to see."
 		},
 		{
 			"id": "14-executors",
@@ -75,20 +147,218 @@
 			"text": "Datasources. Every connection is held, and the next query has to wait."
 		},
 		{
+			"id": "16b-queries",
+			"text": "The queries page ranks every statement of every request. The slowest, the most repeated, and where each one runs."
+		},
+		{
+			"id": "16c-http",
+			"text": "The HTTP page does the same for outgoing calls. Each endpoint, with its failures counted apart from its successes."
+		},
+		{
+			"id": "16d-caches",
+			"text": "Caches shows every cache, with its hits, its misses, and its entries."
+		},
+		{
+			"id": "a5",
+			"card": {
+				"t": "<b>5</b> &nbsp;Logs",
+				"s": "Every log file, live"
+			},
+			"hold": 2.6,
+			"n": 5,
+			"name": "Logs"
+		},
+		{
+			"id": "17a-logs",
+			"text": "Logs lists every file in the BoxLang logs directory, with its size. Pick one, and it tails live."
+		},
+		{
+			"id": "17b-filter",
+			"text": "Filter by level, search the text, or download the file. No terminal, no ssh."
+		},
+		{
+			"id": "a6",
+			"card": {
+				"t": "<b>6</b> &nbsp;The machine",
+				"s": "What is under BoxLang"
+			},
+			"hold": 2.6,
+			"n": 6,
+			"name": "The machine"
+		},
+		{
+			"id": "18a-system",
+			"text": "The system page is the machine under BoxLang. CPU, load, memory, disk and network, live, with the share that belongs to BoxLang."
+		},
+		{
+			"id": "18b-cpu",
+			"text": "The CPU, core by core, and the context switches."
+		},
+		{
+			"id": "18c-memory",
+			"text": "Memory shows what is used, what is cached, what is still available, and whether the machine is swapping."
+		},
+		{
+			"id": "18d-disks",
+			"text": "Disks shows how full each location is. The logs, the store, and the temp folder, with warning and critical levels."
+		},
+		{
+			"id": "18e-network",
+			"text": "Network shows the connections, the interfaces, and the retransmits."
+		},
+		{
+			"id": "a7",
+			"card": {
+				"t": "<b>7</b> &nbsp;The JVM",
+				"s": "Memory, garbage and threads"
+			},
+			"hold": 2.6,
+			"n": 7,
+			"name": "The JVM"
+		},
+		{
+			"id": "19a-jvm",
+			"text": "The JVM page starts with what needs attention. Here, two threads are deadlocked."
+		},
+		{
+			"id": "19b-memory",
+			"text": "Memory shows the heap over time, every memory pool, and the rate of allocation. A heap dump is one click away."
+		},
+		{
+			"id": "19c-gc",
+			"text": "Garbage collection. The time spent, the longest pause, each collection as a bar, and the reason each one ran."
+		},
+		{
 			"id": "17-deadlock",
-			"text": "A deadlock. The system page flags two stuck threads, and the threads page shows exactly where each one is waiting."
+			"text": "The Threads tab names both deadlocked threads, and the lock each one waits for. Below, the pools, the blocked chains, and snapshots to compare."
+		},
+		{
+			"id": "19e-classes",
+			"text": "Classes and JIT. The classes loaded, the code cache, the compiler, and the direct buffers."
+		},
+		{
+			"id": "19f-web",
+			"text": "And the web server. The worker threads, the traffic, and what is queued."
+		},
+		{
+			"id": "a9",
+			"card": {
+				"t": "<b>8</b> &nbsp;AI observability",
+				"s": "Agents, tools, MCP and cost"
+			},
+			"hold": 2.6,
+			"n": 8,
+			"name": "AI observability"
 		},
 		{
 			"id": "18-ai",
-			"text": "Then the AI page. Five agents, running on a mock model. Runs, success, tokens and cost. A failing tool is flagged, with the agent that uses it."
+			"text": "The overview shows runs, success, run time, tokens and cost. A failing tool is flagged, with the agent that uses it."
+		},
+		{
+			"id": "21b-agents",
+			"text": "Agents. Five agents, each with a mini report. The slowest agents, and the tools that fail most, are ranked on top."
+		},
+		{
+			"id": "21c-composition",
+			"text": "Open the coordinator, and see how it is composed. Its model, its tools, and its sub agents."
+		},
+		{
+			"id": "21d-runs",
+			"text": "Runs lists every run. Agents, model calls, and MCP calls, with their time, their tokens, and the request that started them. Filter for failed, slow, or delegated."
 		},
 		{
 			"id": "19-trace",
-			"text": "Open the coordinator, and see how it is composed. Open a run, and the trace nests the sub agents, each tool, and each model call."
+			"text": "Open a run, and the trace nests the sub agents, each tool, and each model call."
+		},
+		{
+			"id": "21f-failed",
+			"text": "Open a failed run, and see which tool failed, and after how long."
+		},
+		{
+			"id": "21g-mcp",
+			"text": "MCP. The servers this application hosts, with their requests, their failures, and their limits. And the servers your agents call."
+		},
+		{
+			"id": "21h-models",
+			"text": "Models. Calls, latency, tokens and cost for each model, and the agents that use it."
+		},
+		{
+			"id": "21i-cost",
+			"text": "Cost. The spend per day and per run, by model and by agent. Nothing is guessed. A model without a price adds no money."
+		},
+		{
+			"id": "21j-registries",
+			"text": "Registries. Every agent, tool, skill and MCP server that bx-ai knows about."
+		},
+		{
+			"id": "21k-settings",
+			"text": "Settings. Choose how much of each prompt and answer is kept, set the alert limits, and enter your prices."
+		},
+		{
+			"id": "a8",
+			"card": {
+				"t": "<b>9</b> &nbsp;Lensy",
+				"s": "The Box Agent for your server"
+			},
+			"hold": 2.6,
+			"n": 9,
+			"name": "Lensy"
+		},
+		{
+			"id": "20a-intro",
+			"text": "Meet Lensy, the box agent for your server. Ask in plain words, and it calls the same tools the console uses. In this video the model is a mock with scripted answers. The tools are real."
+		},
+		{
+			"id": "20b-diagnose",
+			"text": "Start with, diagnose this server. Lensy runs a health sweep, then looks at the errors and the executors."
+		},
+		{
+			"id": "20c-answer",
+			"text": "Three critical findings. Two deadlocked threads, named. A saturated executor. And a datasource with every connection in use. It also points at the most frequent error, a task that cannot reach the prices API."
+		},
+		{
+			"id": "20d-slow",
+			"text": "Then ask about a page. Why is checkout failing? Lensy finds the latest request, and opens it."
+		},
+		{
+			"id": "20e-answer",
+			"text": "It finds the exception, and ties it to the exhausted connection pool. From a question to a cause, in one chat."
+		},
+		{
+			"id": "a10",
+			"card": {
+				"t": "<b>10</b> &nbsp;Many servers",
+				"s": "And the applications on them"
+			},
+			"hold": 2.6,
+			"n": 10,
+			"name": "Many servers"
 		},
 		{
 			"id": "20-fleet",
 			"text": "The server selector looks at any server, or at all of them at once, with the numbers added up."
+		},
+		{
+			"id": "22b-coldbox",
+			"text": "The ColdBox page shows the application as BxLens sees it. Its composition, its modules, its schedulers, its caches, and its findings."
+		},
+		{
+			"id": "22c-watchers",
+			"text": "Watchers shows every file watcher, with its events and its errors."
+		},
+		{
+			"id": "22d-apps",
+			"text": "And applications lists every application the server knows."
+		},
+		{
+			"id": "a11",
+			"card": {
+				"t": "<b>11</b> &nbsp;The tickets",
+				"s": "Solve three support cases"
+			},
+			"hold": 2.6,
+			"n": 11,
+			"name": "The tickets"
 		},
 		{
 			"id": "21-tickets",
@@ -99,12 +369,8 @@
 			"text": "Take the payments ticket. Reproduce it, and the errors page shows one new group. About a quarter of the requests, and the gateway's answer in the sample."
 		},
 		{
-			"id": "22-more",
-			"text": "There are file watchers, and a real ColdBox application with its own schedulers. All of it, wired to the same console."
-		},
-		{
-			"id": "23-outro",
-			"text": "BxLens. Find the cause, not just the symptom. Install it from ForgeBox, and run this demo yourself."
+			"id": "24-outro",
+			"text": "BxLens. Find the cause, not just the symptom. Learn more at bxlens.boxlang.io, and run this demo yourself."
 		}
 	]
 }

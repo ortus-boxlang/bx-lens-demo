@@ -1,0 +1,18 @@
+/**
+ * Clears the Errors page of the console, so the walkthrough starts with groups made on purpose.
+ * Usage: BASE=http://127.0.0.1:8097 CHROMIUM=/path/to/chrome boxlang prepare.bxs
+ */
+t = new lib.Recorder( getSystemSetting( "BASE", "http://127.0.0.1:8088" ), getSystemSetting( "OUT", "out" ), "lens-demo", false )
+t.login()
+t.nav( "Errors" )
+t.wait( 800 )
+t.click( 'button:has-text("Clear")' )
+t.wait( 800 )
+// A confirmation may follow: Clear, Yes or Confirm
+confirm = 'button:has-text("Clear"), button:has-text("Yes"), button:has-text("Confirm")'
+if ( t.count( confirm ) > 1 ) {
+	try { t.getPage().locator( confirm ).last().click() } catch ( any e ) {}
+}
+t.wait( 800 )
+println( "errors cleared" )
+t.close()

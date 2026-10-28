@@ -1,0 +1,41 @@
+/**
+ * Runs the programs of the video tools (ffmpeg and ffprobe): one list of arguments, no shell, so nothing is parsed or escaped.
+ */
+class {
+
+	/**
+	 * Run a program and return what it printed.
+	 *
+	 * @command The program and its arguments, one array element each
+	 * @cwd     The folder to run in, empty for the current one
+	 */
+	string function run( required array command, string cwd = "" ) {
+		var builder = createObject( "java", "java.lang.ProcessBuilder" ).init( arguments.command.map( ( c ) => toString( c ) ) )
+		if ( len( arguments.cwd ) ) {
+			builder.directory( createObject( "java", "java.io.File" ).init( arguments.cwd ) )
+		}
+		builder.redirectErrorStream( true )
+		var process = builder.start()
+		var output  = createObject( "java", "java.lang.String" ).init( process.getInputStream().readAllBytes() )
+		var code    = process.waitFor()
+		if ( code != 0 ) {
+			throw( type = "Shell.Failed", message = arguments.command[ 1 ] & " failed with " & code, detail = right( output, 3000 ) )
+		}
+		return output
+	}
+
+	/**
+	 * A number with a fixed count of decimals and a dot, whatever the language of the machine.
+	 */
+	string function fixed( required numeric value, numeric decimals = 3 ) {
+		return createObject( "java", "java.lang.String" ).format( createObject( "java", "java.util.Locale" ).ROOT, "%." & arguments.decimals & "f", [ javacast( "double", arguments.value ) ] )
+	}
+
+	/**
+	 * The length in seconds of an audio or video file.
+	 */
+	numeric function seconds( required string file ) {
+		return val( trim( run( [ "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", arguments.file ] ) ) )
+	}
+
+}
