@@ -96,11 +96,8 @@ if ( VOICE ) {
 } else {
 	// Music only. The picture sits in a frame with a strip under it. The strip has the captions (styled), the act marker and the progress dots,
 	// and the opening and closing slides are animated (graphics.cjs draws them).
-	const acts = narration.segments.filter( x => x.card ).map( x => {
-		const html = x.card.t;
-		const start = tl.segments.find( y => y.id === x.id ).start - shift;
-		return { id: x.id, n: parseInt( html.replace( /<[^>]+>/g, '' ), 10 ), name: html.replace( /<[^>]+>/g, '' ).replace( /^\s*\d+\s*(&nbsp;)?\s*/, '' ).replace( /&nbsp;/g, ' ' ).trim(), start };
-	} );
+	// The number and the name of every act are in narration.json
+	const acts = narration.segments.filter( x => x.card ).map( x => ( { id: x.id, n: x.n, name: x.name, start: tl.segments.find( y => y.id === x.id ).start - shift } ) );
 	const s01 = tl.segments.find( x => x.id === '01-intro' ), sEnd = tl.segments.find( x => x.id === narration.segments[ narration.segments.length - 1 ].id );
 	const openDur = s01.start - shift + 8.8, closeFrom = sEnd.start - shift, closeDur = total - closeFrom;
 	const spec = { acts: acts.map( x => ( { n: x.n, name: x.name } ) ), of: acts.length, open: openDur, close: closeDur };

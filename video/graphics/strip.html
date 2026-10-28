@@ -13,5 +13,12 @@ body:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;backgro
 </style>
 <body><script>
 const q=new URLSearchParams(location.search);const n=+q.get('n'),of=+q.get('of')||11,name=q.get('name')||'';
-if(n>0)document.body.innerHTML=`<div class=tag><b>${n} of ${of}</b>${name.replace(/</g,'&lt;')}</div><div class=dots>${Array.from({length:of},(_,i)=>'<i class="'+(i<n?'on':'')+'"></i>').join('')}</div>`;
+if(n>0){
+	const tag=document.createElement('div');tag.className='tag';
+	const b=document.createElement('b');b.textContent=n+' of '+of;
+	tag.append(b,document.createTextNode(name));
+	const dots=document.createElement('div');dots.className='dots';
+	for(let i=0;i<of;i++){const d=document.createElement('i');if(i<n)d.className='on';dots.append(d);}
+	document.body.append(tag,dots);
+}
 </script>

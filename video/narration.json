@@ -20,7 +20,9 @@
 				"t": "<b>1</b> &nbsp;The bar",
 				"s": "One request, everything about it"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 1,
+			"name": "The bar"
 		},
 		{
 			"id": "03-bar",
@@ -52,7 +54,9 @@
 				"t": "<b>2</b> &nbsp;The console",
 				"s": "The whole server at a glance"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 2,
+			"name": "The console"
 		},
 		{
 			"id": "09-overview",
@@ -68,7 +72,9 @@
 				"t": "<b>3</b> &nbsp;Requests, in depth",
 				"s": "Every request, every section"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 3,
+			"name": "Requests, in depth"
 		},
 		{
 			"id": "11a-list",
@@ -108,7 +114,9 @@
 				"t": "<b>4</b> &nbsp;Finding problems",
 				"s": "Errors, runtime health, queries and calls"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 4,
+			"name": "Finding problems"
 		},
 		{
 			"id": "12-errors",
@@ -156,7 +164,9 @@
 				"t": "<b>5</b> &nbsp;Logs",
 				"s": "Every log file, live"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 5,
+			"name": "Logs"
 		},
 		{
 			"id": "17a-logs",
@@ -172,7 +182,9 @@
 				"t": "<b>6</b> &nbsp;The machine",
 				"s": "What is under BoxLang"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 6,
+			"name": "The machine"
 		},
 		{
 			"id": "18a-system",
@@ -200,7 +212,9 @@
 				"t": "<b>7</b> &nbsp;The JVM",
 				"s": "Memory, garbage and threads"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 7,
+			"name": "The JVM"
 		},
 		{
 			"id": "19a-jvm",
@@ -232,7 +246,9 @@
 				"t": "<b>8</b> &nbsp;AI observability",
 				"s": "Agents, tools, MCP and cost"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 8,
+			"name": "AI observability"
 		},
 		{
 			"id": "18-ai",
@@ -284,7 +300,9 @@
 				"t": "<b>9</b> &nbsp;Lensy",
 				"s": "The Box Agent for your server"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 9,
+			"name": "Lensy"
 		},
 		{
 			"id": "20a-intro",
@@ -312,7 +330,9 @@
 				"t": "<b>10</b> &nbsp;Many servers",
 				"s": "And the applications on them"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 10,
+			"name": "Many servers"
 		},
 		{
 			"id": "20-fleet",
@@ -336,7 +356,9 @@
 				"t": "<b>11</b> &nbsp;The tickets",
 				"s": "Solve three support cases"
 			},
-			"hold": 2.6
+			"hold": 2.6,
+			"n": 11,
+			"name": "The tickets"
 		},
 		{
 			"id": "21-tickets",
