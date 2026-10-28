@@ -32,5 +32,5 @@ echo "watchers"
 for a in drop edit slow fail burst global; do hit "/watchers.bxm?action=$a"; done
 echo done
 
-# What the Errors page shows at the start of the recording: the group list is cleared (prepare.cjs), then these fill it again.
+# What the Errors page shows at the start of the recording: the group list is cleared (prepare.bxs), then these fill it again.
 echo "errors for the recording"

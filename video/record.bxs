@@ -1,0 +1,407 @@
+/**
+ * Records the walkthrough of the demo. The narration (narration.json) is spoken first, so every segment's length is known; each segment drives
+ * the browser for its sentences and the recorder keeps a log of when each segment really started, which the mixer uses to place the captions.
+ *
+ * Usage: BASE=http://127.0.0.1:8097 OUT=out CHROMIUM=/path/to/chrome boxlang record.bxs
+ *   SHOTS=1  save a screenshot at the end of every segment into OUT (a quick check, with the waits cut short)
+ *   ONLY=11-requests,12-errors  run only these segments (with SHOTS for a check of the selectors)
+ */
+videoDir  = getDirectoryFromPath( getCurrentTemplatePath() )
+BASE      = getSystemSetting( "BASE", "http://127.0.0.1:8088" )
+OUT       = createObject( "java", "java.io.File" ).init( getSystemSetting( "OUT", "out" ) ).getAbsolutePath()
+SHOTS     = len( getSystemSetting( "SHOTS", "" ) ) > 0
+ONLY      = listToArray( getSystemSetting( "ONLY", "" ) )
+narration = jsonDeserialize( fileRead( videoDir & "narration.json" ) )
+shell     = new lib.Shell()
+logo      = "data:image/png;base64," & toBase64( fileReadBinary( videoDir & "assets/bxaudio-logo-full-dark-md.png" ) )
+
+/** Scroll a few times, pausing between. */
+function wheel( t, n, dy, every ) {
+	for ( var i = 1; i <= n; i++ ) {
+		t.wheel( 0, dy )
+		t.wait( every )
+	}
+}
+
+/** Type in the search box of the Requests page. */
+function search( t, text ) {
+	var box = 'input[placeholder^="Search URL"]:visible'
+	t.fill( box, "" )
+	t.glide( box )
+	t.typeText( text, 70 )
+	t.wait( 900 )
+}
+
+/** Ask Lensy a question: type it, send it, and let the answer stream in. */
+function ask( t, q ) {
+	t.glide( "textarea:visible" )
+	t.typeText( q, 60 )
+	t.wait( 400 )
+	t.key( "Enter" )
+	t.wait( 3000 )
+}
+
+/** Scroll the trace of an AI run into view. */
+function showTrace( t ) {
+	t.evalOn( "##obs-trace", "e => e.scrollIntoView( { block: 'start', behavior: 'smooth' } )" )
+	t.wait( 1800 )
+}
+
+// What happens on screen for each segment. The runner holds the last frame until the voice has finished.
+acts = {
+	"01-intro" : function( t ) {
+		// The opening card is already up
+		t.wait( 8500 )
+		t.cardOff()
+	},
+	"02-panel" : function( t ) {
+		for ( var i = 1; i <= 6; i++ ) { t.wheel( 0, 140 ); t.wait( 700 ) }
+		t.wait( 600 )
+		t.wheel( 0, -900 )
+		t.bugOff()
+	},
+	"03-bar" : function( t ) {
+		t.goBar( "/orders.bxm" )
+		t.hover( "##bxlens .lens" )
+	},
+	"04-timeline" : function( t ) {
+		t.bar( "Timeline" )
+		t.moveTo( 700, 790, 20 )
+		t.wait( 900 )
+		t.moveTo( 700, 846, 30 )
+	},
+	"05-queries" : function( t ) {
+		t.goBar( "/n-plus-one.bxm" )
+		t.bar( "Queries" )
+		t.moveTo( 960, 900 )
+		for ( var i = 1; i <= 3; i++ ) { t.wheel( 0, 120 ); t.wait( 900 ) }
+	},
+	"06-http" : function( t ) {
+		t.goBar( "/http-failures.bxm" )
+		t.bar( "HTTP" )
+		t.moveTo( 960, 900 )
+		for ( var i = 1; i <= 3; i++ ) { t.wheel( 0, 110 ); t.wait( 900 ) }
+	},
+	"07-cost" : function( t ) {
+		t.goBar( "/cost.bxm?mode=both" )
+		t.bar( "Request" )
+		t.wait( 1500 )
+		t.moveTo( 960, 900, 15 )
+		t.wheel( 0, 300 )
+	},
+	"08-exception" : function( t ) {
+		t.goBar( "/caught-exception.bxm" )
+		t.wait( 1200 )
+	},
+	"09-overview" : function( t ) {
+		t.login()
+		t.wait( 1500 )
+		t.wheel( 0, 500 )
+		t.wait( 1500 )
+		t.wheel( 0, -500 )
+	},
+	"10-servers" : function( t ) {
+		t.hover( 'tr:has-text("web-a")' )
+		t.wait( 800 )
+		t.hover( 'tr:has-text("web-b")' )
+		t.wait( 800 )
+		t.hover( 'tr:has-text("web-c")' )
+	},
+	"11a-list" : function( t ) {
+		// Fresh requests so that the list has the ones we open next
+		t.fire( "/investigate/checkout.bxm" )
+		t.fire( "/cbApp/public/index.bxm/orders" )
+		t.nav( "Requests" )
+		t.click( t.match( ".rq-chip:visible", "With issues" ) )
+		for ( var chip in [ "Errors", "Slow", "ColdBox" ] ) {
+			t.hover( t.match( ".rq-chip:visible", chip ) )
+			t.wait( 500 )
+		}
+		t.click( t.match( ".rq-chip:visible", "ColdBox" ) )
+		t.wait( 600 )
+		t.hover( 'tr:visible:has-text("ColdBox")' )
+	},
+	"11-requests" : function( t ) {
+		t.click( t.match( ".rq-chip:visible", "^\s*All" ) )
+		search( t, "checkout" )
+		t.pick( 'tr:visible:has-text("/investigate/checkout.bxm")' )
+		t.wait( 1500 )
+	},
+	"11b-security" : function( t ) {
+		t.hover( ':text("Security headers missing") >> visible=true' )
+		t.wait( 1000 )
+	},
+	"11c-timeline" : function( t ) {
+		t.wheel( 0, 120 )
+		t.wait( 600 )
+		t.pick( "text=/SELECT name, country FROM customers/ >> visible=true >> nth=3" )
+		t.wait( 1800 )
+	},
+	"11d-sections" : function( t ) {
+		t.click( 'button:visible:has-text("Expand all")' )
+		t.wait( 1500 )
+		t.moveTo( 1100, 700 )
+		wheel( t, 6, 520, 1300 )
+	},
+	"11e-scopes" : function( t ) {
+		wheel( t, 7, 560, 1400 )
+	},
+	"11f-coldbox" : function( t ) {
+		t.nav( "Requests" )
+		t.wait( 800 )
+		search( t, "cbApp/public/index.bxm/orders" )
+		t.pick( 'tr:visible:has-text("/cbApp/public/index.bxm/orders")' )
+		t.wait( 1500 )
+		t.click( 'button:visible:has-text("Expand all")' )
+		t.wait( 1500 )
+		t.scrollTo( ':text("rendered more than once") >> visible=true' )
+		t.hover( ':text("rendered more than once") >> visible=true' )
+		t.wait( 1500 )
+	},
+	"11g-inflight" : function( t ) {
+		t.load( [ "/investigate/checkout.bxm", "/cbApp/public/index.bxm/perf/parallel", "/investigate/checkout.bxm" ], 450, 22 )
+		t.nav( "In flight" )
+		t.wait( 2500 )
+		t.hover( "tr:visible >> nth=1" )
+	},
+	"12-errors" : function( t ) {
+		t.nav( "Errors" )
+		t.wait( 1500 )
+		t.hover( "text=Escalating >> nth=0" )
+	},
+	"12b-sample" : function( t ) {
+		t.pick( 'tr:visible:has-text("MISSING_TABLE")' )
+		t.wait( 1500 )
+		wheel( t, 3, 300, 900 )
+		t.wheel( 0, -900 )
+		t.hover( 'button:visible:has-text("Resolve")' )
+	},
+	"13-reports" : function( t ) {
+		t.fire( "/control.bxm?action=start&id=executors&tasks=14&seconds=900" )
+		t.nav( "Reports" )
+		t.wait( 1200 )
+		t.wheel( 0, 400 )
+	},
+	"13b-boards" : function( t ) {
+		t.wheel( 0, -900 )
+		t.click( 'button:visible:text-is("Boards")' )
+		t.wait( 1500 )
+		wheel( t, 2, 400, 1200 )
+		t.wheel( 0, -900 )
+	},
+	"14-executors" : function( t ) {
+		t.nav( "Executors" )
+		t.wait( 1500 )
+	},
+	"15-tasks" : function( t ) {
+		t.nav( "Tasks" )
+		t.wait( 1000 )
+		t.hover( "text=sync-prices" )
+	},
+	"16-datasources" : function( t ) {
+		t.fire( "/control.bxm?action=start&id=pool" )
+		t.nav( "Datasources" )
+		t.wait( 1500 )
+	},
+	"16b-queries" : function( t ) {
+		t.nav( "Queries" )
+		t.wait( 2500 )
+		t.hover( "tr:visible >> nth=2" )
+	},
+	"16c-http" : function( t ) {
+		t.nav( "HTTP" )
+		t.wait( 2500 )
+		t.hover( 'tr:visible:has-text("localhost")' )
+	},
+	"16d-caches" : function( t ) {
+		t.nav( "Caches" )
+		t.wait( 2500 )
+	},
+	"17a-logs" : function( t ) {
+		t.nav( "Logs" )
+		t.wait( 1200 )
+		t.pick( "text=demo.log >> visible=true >> nth=0" )
+		t.wait( 1500 )
+	},
+	"17b-filter" : function( t ) {
+		t.pick( "text=exception.log >> visible=true >> nth=0" )
+		t.wait( 1200 )
+		t.glide( 'input[placeholder^="Search this file"]:visible' )
+		t.typeText( "Exception", 80 )
+		t.wait( 1200 )
+		t.hover( t.match( "a:visible, button:visible", "^\s*Download" ) )
+	},
+	"18a-system" : function( t ) {
+		t.nav( "System" )
+		t.wait( 3500 )
+		wheel( t, 1, 380, 1200 )
+	},
+	"18b-cpu" : function( t ) { t.wheel( 0, -900 ); t.tab( "CPU" ); t.wait( 1500 ) },
+	"18c-memory" : function( t ) { t.tab( "Memory" ); t.wait( 1500 ) },
+	"18d-disks" : function( t ) { t.tab( "Disks" ); t.wait( 1500 ) },
+	"18e-network" : function( t ) { t.tab( "Network" ); t.wait( 1500 ) },
+	"19a-jvm" : function( t ) {
+		t.fire( "/control.bxm?action=start&id=deadlock&kind=java" )
+		t.wait( 2500 )
+		t.nav( "JVM" )
+		t.wait( 2500 )
+		t.hover( ':text("deadlocked") >> visible=true >> nth=0' )
+	},
+	"19b-memory" : function( t ) { t.tab( "Memory" ); t.wait( 2500 ) },
+	"19c-gc" : function( t ) { t.tab( "Garbage collection" ); t.wait( 2500 ) },
+	"17-deadlock" : function( t ) {
+		t.tab( "Threads" )
+		t.wait( 2500 )
+		wheel( t, 2, 400, 1500 )
+	},
+	"19e-classes" : function( t ) { t.wheel( 0, -900 ); t.tab( "Classes and JIT" ); t.wait( 2500 ) },
+	"19f-web" : function( t ) { t.nav( "Web server" ); t.wait( 2500 ) },
+	"20a-intro" : function( t ) {
+		t.nav( "Ask Lens" )
+		t.wait( 2000 )
+		t.hover( "text=Do we have any blocked threads? >> visible=true" )
+	},
+	"20b-diagnose" : function( t ) {
+		ask( t, "Diagnose this server" )
+	},
+	"20c-answer" : function( t ) { t.wait( 800 ) },
+	"20d-slow" : function( t ) {
+		t.fire( "/investigate/checkout.bxm" )
+		ask( t, "Why is checkout failing?" )
+	},
+	"20e-answer" : function( t ) { t.wait( 800 ) },
+	"18-ai" : function( t ) {
+		t.nav( "AI" )
+		t.wait( 1500 )
+		t.hover( "text=generate_report >> visible=true >> nth=0" )
+	},
+	"21b-agents" : function( t ) { t.tab( "Agents" ); t.wait( 2000 ); t.hover( "text=FlakyReporter >> visible=true >> nth=0" ) },
+	"21c-composition" : function( t ) {
+		t.click( "text=Coordinator >> visible=true >> nth=-1" )
+		t.wait( 2500 )
+	},
+	"21d-runs" : function( t ) {
+		t.tab( "Runs" )
+		t.wait( 1500 )
+		t.hover( 'button:visible:has-text("delegated")' )
+		t.wait( 500 )
+		t.hover( 'button:visible:has-text("failed only")' )
+	},
+	"19-trace" : function( t ) {
+		t.click( 'button:visible:has-text("delegated")' )
+		t.wait( 800 )
+		t.click( "tbody tr:visible >> nth=0" )
+		t.wait( 800 )
+		showTrace( t )
+	},
+	"21f-failed" : function( t ) {
+		t.wheel( 0, -2000 )
+		t.wait( 600 )
+		t.click( 'button:visible:has-text("failed only")' )
+		t.wait( 800 )
+		t.click( "tbody tr:visible >> nth=0" )
+		t.wait( 800 )
+		showTrace( t )
+	},
+	"21g-mcp" : function( t ) { t.wheel( 0, -3000 ); t.tab( "MCP" ); t.wait( 2500 ) },
+	"21h-models" : function( t ) { t.tab( "Models" ); t.wait( 2500 ) },
+	"21i-cost" : function( t ) { t.tab( "Cost" ); t.wait( 2500 ) },
+	"21j-registries" : function( t ) { t.tab( "Registries" ); t.wait( 1500 ); t.click( "text=Tools >> visible=true >> nth=0" ); t.wait( 1200 ) },
+	"21k-settings" : function( t ) { t.tab( "Settings" ); t.wait( 3000 ) },
+	"20-fleet" : function( t ) {
+		t.fire( "/control.bxm?action=resetAll" )
+		t.nav( "Reports" )
+		t.wait( 1000 )
+		t.click( "##server-select" )
+		t.wait( 700 )
+		t.click( 'text="web-c"' )
+		t.wait( 2200 )
+		t.click( "##server-select" )
+		t.wait( 700 )
+		t.click( 'text="All servers"' )
+		t.wait( 2000 )
+		t.click( "##server-select" )
+		t.wait( 600 )
+		t.click( 'text="web-a"' )
+		t.wait( 800 )
+	},
+	"22b-coldbox" : function( t ) {
+		t.nav( "ColdBox" )
+		t.wait( 1800 )
+		for ( var n in [ "Findings", "Composition", "Modules", "Schedulers" ] ) { t.tab( n ); t.wait( 900 ) }
+	},
+	"22c-watchers" : function( t ) { t.nav( "Watchers" ); t.wait( 2500 ) },
+	"22d-apps" : function( t ) { t.nav( "Applications" ); t.wait( 2500 ) },
+	"21-tickets" : function( t ) {
+		t.go( "/investigate/" )
+		// The bar was left open by the earlier pages
+		if ( t.visible( "##bxlens .panel" ) ) { t.key( "Control+`" ); t.wait( 500 ) }
+		t.hover( "button.repro >> nth=0" )
+		t.hover( "button.repro >> nth=1" )
+		t.hover( "button.repro >> nth=2" )
+	},
+	"21b-payments" : function( t ) {
+		t.click( "button.repro >> nth=1" )
+		t.wait( 5000 )
+		t.go( "/~bxlens/index.bxm" )
+		t.nav( "Errors" )
+		t.wait( 800 )
+		t.pick( 'tr:visible:has-text("PaymentGatewayError")' )
+	},
+	"24-outro" : function( t ) {
+		t.card( {
+			"t" : "<b>bxlens</b>.boxlang.io", "s" : "Find the cause, not just the symptom.", "big" : true,
+			"foot" : 'Music by <img src="' & logo & '"> &nbsp;bxaudio.boxlang.io'
+		} )
+		t.wait( 6000 )
+	}
+}
+
+// -- The runner ---------------------------------------------------------------------------------------------------------------------------
+t   = new lib.Recorder( BASE, OUT, "lens-demo", !SHOTS )
+log = []
+// The opening card is up from the start, before the first segment
+t.go( "/index.bxm" )
+t.card( { "t" : "<b>Bx</b>Lens", "s" : "Observability for BoxLang" } )
+t.bug( { "s" : "Music by", "img" : logo } )
+t.wait( 2000 )
+if ( ONLY.len() && !ONLY.contains( "01-intro" ) ) {
+	t.cardOff()
+	t.bugOff()
+	// A run of the console segments needs the console signed in
+	if ( !ONLY.contains( "09-overview" ) && ONLY.filter( ( id ) => !reFind( "^(0|1[01]a?-|11b)", id ) ).len() ) {
+		t.login()
+	}
+}
+gap  = 1.1   // seconds of picture after the voice has finished
+lead = 0.7   // seconds of picture before the voice starts
+for ( seg in narration.segments ) {
+	if ( ONLY.len() && !ONLY.contains( seg.id ) ) { continue }
+	start = t.now()
+	if ( seg.keyExists( "card" ) ) {
+		t.card( seg.card )
+		t.wait( seg.hold * 1000 )
+		t.cardOff()
+		t.wait( 500 )
+		log.append( { "id" : seg.id, "start" : start, "voiceAt" : start, "voiceFor" : 0, "end" : t.now() } )
+		continue
+	}
+	dur = shell.seconds( OUT & "/voice/" & seg.id & ".wav" )
+	try {
+		acts[ seg.id ]( t )
+	} catch ( any e ) {
+		println( "segment " & seg.id & " failed: " & e.message )
+	}
+	if ( SHOTS ) {
+		t.shot( "s-" & seg.id )
+	} else {
+		rest = start + lead + dur + gap - t.now()
+		if ( rest > 0 ) { t.wait( rest * 1000 ) }
+	}
+	log.append( { "id" : seg.id, "start" : start, "voiceAt" : start + lead, "voiceFor" : dur, "end" : t.now() } )
+	println( seg.id & " start " & shell.fixed( start, 1 ) & " end " & shell.fixed( t.now(), 1 ) )
+}
+total = t.now()
+t.close()
+fileWrite( OUT & "/timeline.json", jsonSerialize( { "total" : total, "segments" : log } ) )
+println( "total " & shell.fixed( total, 1 ) )

@@ -1,0 +1,356 @@
+/**
+ * The recorder of the walkthrough: a browser (bx-playwright) with a visible cursor and click ripple, title cards, and helpers to drive the bar
+ * and the console. The picture is a screencast of the browser: Chrome stamps every frame with the real time it was shown, and mix.bxs builds
+ * the video from the frames and their stamps, so the picture cannot drift from the narration (the video recording of Playwright does).
+ *
+ * Set CHROMIUM to a Chromium binary when bx-playwright has none installed (bxplaywright install chromium).
+ * The scripts that run in the page are in browser/: overlay.js (cursor, ripple, cards, credit) and tidy.js (hides what belongs to the recording machine).
+ */
+class {
+
+	variables.size = { "width" : 1920, "height" : 1080 }
+
+	/**
+	 * Open the browser.
+	 *
+	 * @base     The address of the demo, for example http://127.0.0.1:8097
+	 * @out      The folder for the frames
+	 * @password The console password
+	 * @cast     True to record the screencast (false for screenshots of a check)
+	 */
+	function init( required string base, required string out, string password = "lens-demo", boolean cast = true ) {
+		variables.base     = arguments.base
+		variables.out      = arguments.out
+		variables.password = arguments.password
+		variables.System   = createObject( "java", "java.lang.System" )
+		variables.mouseX   = 0
+		variables.mouseY   = 0
+		variables.frames   = []
+		directoryCreate( arguments.out, true, true )
+
+		var launch = { "args" : [ "--no-sandbox", "--force-device-scale-factor=1" ] }
+		var chrome = getSystemSetting( "CHROMIUM", "" )
+		if ( len( chrome ) ) {
+			launch.executablePath = chrome
+		}
+		variables.pw      = playwright( "default", { "viewport" : variables.size, "colorScheme" : "dark", "launchOptions" : launch } )
+		variables.page    = variables.pw.newPage()
+		variables.jpage   = variables.page.getJava()
+		variables.context = variables.jpage.context()
+		var browserDir    = getDirectoryFromPath( getCurrentTemplatePath() ) & "../browser/"
+		variables.context.addInitScript( fileRead( browserDir & "overlay.js" ) )
+		variables.context.addInitScript( fileRead( browserDir & "tidy.js" ) )
+		variables.jpage.setDefaultTimeout( 20000 )
+		variables.jpage.onDialog( ( dialog ) => {
+			try { dialog.accept() } catch ( any e ) {}
+		} )
+		variables.t0 = variables.System.currentTimeMillis()
+		if ( arguments.cast ) {
+			startCast()
+		}
+		return this
+	}
+
+	/**
+	 * Start the screencast: every frame is written as a JPEG with the time Chrome gave it.
+	 */
+	private function startCast() {
+		variables.frameDir = variables.out & "/frames"
+		if ( directoryExists( variables.frameDir ) ) {
+			directoryDelete( variables.frameDir, true )
+		}
+		directoryCreate( variables.frameDir, true, true )
+		variables.cdp = variables.context.newCDPSession( variables.jpage )
+		var session   = variables.cdp
+		var self      = this
+		variables.cdp.on( "Page.screencastFrame", ( event ) => {
+			var n = frames.len()
+			var name = "f" & numberFormat( n, "000000" ) & ".jpg"
+			frames.append( { "f" : name, "ts" : event.get( "metadata" ).getAsJsonObject().get( "timestamp" ).getAsDouble() } )
+			fileWrite( frameDir & "/" & name, toBinary( event.get( "data" ).getAsString() ) )
+			var ack = createObject( "java", "com.google.gson.JsonObject" )
+			ack.addProperty( "sessionId", event.get( "sessionId" ).getAsInt() )
+			session.send( "Page.screencastFrameAck", ack )
+		} )
+		var params = createObject( "java", "com.google.gson.JsonObject" )
+		params.addProperty( "format", "jpeg" )
+		params.addProperty( "quality", 88 )
+		params.addProperty( "maxWidth", variables.size.width )
+		params.addProperty( "maxHeight", variables.size.height )
+		params.addProperty( "everyNthFrame", 1 )
+		variables.cdp.send( "Page.startScreencast", params )
+	}
+
+	/**
+	 * Seconds since the browser opened.
+	 */
+	numeric function now() {
+		return ( variables.System.currentTimeMillis() - variables.t0 ) / 1000
+	}
+
+	function wait( required numeric milliseconds ) {
+		variables.jpage.waitForTimeout( arguments.milliseconds )
+	}
+
+	/**
+	 * The Playwright page, for a check in a script.
+	 */
+	function getPage() {
+		return variables.jpage
+	}
+
+	// -- The title card, the credit and the cursor --------------------------------------------------------------------------------------
+
+	/**
+	 * Show a title card: a struct with t (HTML), s (a line), and optionally big, foot (HTML) or img (a data address).
+	 */
+	function card( required struct content ) {
+		setStored( "card", jsonSerialize( arguments.content ) )
+	}
+
+	function cardOff() {
+		setStored( "card", "null" )
+	}
+
+	/**
+	 * A small credit in the corner of the picture: a struct with s (the words) and img (a data address).
+	 */
+	function bug( required struct content ) {
+		setStored( "bug", jsonSerialize( arguments.content ) )
+	}
+
+	function bugOff() {
+		setStored( "bug", "null" )
+	}
+
+	private function setStored( required string key, required string json ) {
+		try {
+			variables.jpage.evaluate( "([k, v]) => window.__set( k, JSON.parse( v ) )", [ arguments.key, arguments.json ] )
+		} catch ( any e ) {}
+	}
+
+	// -- Moving and clicking -------------------------------------------------------------------------------------------------------------
+
+	/**
+	 * A locator from a selector (the first match) or the locator itself.
+	 */
+	function locate( required any target ) {
+		return isSimpleValue( arguments.target ) ? variables.jpage.locator( arguments.target ).first() : arguments.target
+	}
+
+	/**
+	 * The first element of a selector whose text matches a regular expression.
+	 */
+	function match( required string selector, required string pattern ) {
+		var options = createObject( "java", "com.microsoft.playwright.Locator$FilterOptions" ).init()
+		options.setHasText( createObject( "java", "java.util.regex.Pattern" ).compile( arguments.pattern ) )
+		return variables.jpage.locator( arguments.selector ).filter( options ).first()
+	}
+
+	/**
+	 * Move the mouse in steps, like Playwright does, from where it was.
+	 */
+	function moveTo( required numeric x, required numeric y, numeric steps = 1 ) {
+		var fromX = variables.mouseX
+		var fromY = variables.mouseY
+		for ( var i = 1; i <= arguments.steps; i++ ) {
+			variables.jpage.mouse().move( fromX + ( arguments.x - fromX ) * i / arguments.steps, fromY + ( arguments.y - fromY ) * i / arguments.steps )
+		}
+		variables.mouseX = arguments.x
+		variables.mouseY = arguments.y
+	}
+
+	function wheel( required numeric deltaX, required numeric deltaY ) {
+		variables.jpage.mouse().wheel( arguments.deltaX, arguments.deltaY )
+	}
+
+	/**
+	 * Type text with a pause between the keys.
+	 */
+	function typeText( required string text, numeric delay = 70 ) {
+		for ( var i = 1; i <= len( arguments.text ); i++ ) {
+			variables.jpage.keyboard().type( mid( arguments.text, i, 1 ) )
+			wait( arguments.delay )
+		}
+	}
+
+	function key( required string name ) {
+		variables.jpage.keyboard().press( arguments.name )
+	}
+
+	/**
+	 * Glide the cursor to an element and click it. The console redraws its lists every second, which makes scrollIntoViewIfNeeded wait for a
+	 * stable element, so the scrolling is done from the page.
+	 */
+	function glide( required any target, boolean click = true, numeric steps = 30 ) {
+		var l = locate( arguments.target )
+		var b = l.boundingBox()
+		if ( isNull( b ) ) {
+			return
+		}
+		if ( b.y < 0 || b.y + b.height > variables.size.height ) {
+			try { l.evaluate( "e => e.scrollIntoView( { block: 'center' } )" ) } catch ( any e ) {}
+			wait( 300 )
+			var again = l.boundingBox()
+			if ( !isNull( again ) ) {
+				b = again
+			}
+		}
+		moveTo( b.x + b.width / 2, b.y + b.height / 2, arguments.steps )
+		wait( 250 )
+		if ( arguments.click ) {
+			var b2 = l.boundingBox()
+			if ( isNull( b2 ) ) {
+				b2 = b
+			}
+			variables.jpage.mouse().click( b2.x + b2.width / 2, b2.y + b2.height / 2 )
+		}
+	}
+
+	function click( required any target ) {
+		glide( arguments.target )
+		wait( 500 )
+	}
+
+	/**
+	 * Click a row of a list the console redraws every second: move the cursor to it, then click the element itself, so the click cannot be lost in a redraw.
+	 */
+	function pick( required any target ) {
+		glide( arguments.target, false )
+		wait( 300 )
+		locate( arguments.target ).dispatchEvent( "click" )
+		wait( 600 )
+	}
+
+	function hover( required any target ) {
+		glide( arguments.target, false )
+		wait( 400 )
+	}
+
+	function scrollTo( required any target ) {
+		locate( arguments.target ).evaluate( "e => e.scrollIntoView( { block: 'center' } )" )
+		wait( 500 )
+	}
+
+	function fill( required any target, required string text ) {
+		locate( arguments.target ).fill( arguments.text )
+	}
+
+	boolean function visible( required any target ) {
+		try { return locate( arguments.target ).isVisible() } catch ( any e ) { return false }
+	}
+
+	function evalOn( required any target, required string script ) {
+		return locate( arguments.target ).evaluate( arguments.script )
+	}
+
+	// -- The console and the bar -----------------------------------------------------------------------------------------------------------
+
+	/**
+	 * A tab of the page: the tabs of the AI, JVM and System pages, and the console tabs.
+	 */
+	function tab( required string name ) {
+		glide( match( ".ptabs2 > *:visible, .tab:visible, [role=tab]:visible", "^\s*" & arguments.name & "\b" ) )
+		wait( 900 )
+	}
+
+	/**
+	 * A page of the console menu.
+	 */
+	function nav( required string name ) {
+		glide( match( ".side .nav", "^\s*" & arguments.name & "\b" ) )
+		wait( 800 )
+	}
+
+	function login() {
+		variables.jpage.navigate( variables.base & "/~bxlens/index.bxm" )
+		wait( 600 )
+		if ( variables.jpage.locator( "##pw" ).count() > 0 ) {
+			glide( "##pw" )
+			typeText( variables.password )
+			glide( ".go" )
+		}
+		variables.jpage.waitForSelector( ".shell .app" )
+		wait( 800 )
+		try { variables.jpage.evaluate( "() => { const p = document.querySelector( '.aipanel' ); if ( p ) { p.style.display = 'none'; } }" ) } catch ( any e ) {}
+	}
+
+	function go( required string path ) {
+		variables.jpage.navigate( variables.base & arguments.path )
+		wait( 500 )
+	}
+
+	/**
+	 * A page with the bar on it.
+	 */
+	function goBar( required string path ) {
+		variables.jpage.navigate( variables.base & arguments.path )
+		variables.jpage.locator( "##bxlens .lens" ).first().waitFor()
+		wait( 500 )
+	}
+
+	/**
+	 * Open the bar if it is closed and show one of its tabs.
+	 */
+	function bar( required string name ) {
+		var panel = variables.jpage.locator( "##bxlens .panel" ).first()
+		if ( !panel.isVisible() ) {
+			key( "Control+`" )
+			panel.waitFor()
+			wait( 500 )
+		}
+		glide( match( "##bxlens .tab", "^\s*" & arguments.name & "\b" ) )
+		wait( 600 )
+	}
+
+	/**
+	 * Call a demo address without leaving the page (to start a scenario). Returns the status.
+	 */
+	function fire( required string path ) {
+		return variables.jpage.evaluate( "u => fetch( u, { credentials: 'same-origin' } ).then( r => r.status )", variables.base & arguments.path )
+	}
+
+	/**
+	 * Keep some load going on the demo for a while, without leaving the page: the addresses are called one after another every few hundred ms.
+	 */
+	function load( required array paths, required numeric every, required numeric seconds ) {
+		variables.jpage.evaluate( "j => { const [ b, u, ms, sec ] = JSON.parse( j ); let i = 0; const id = setInterval( () => { fetch( b + u[ i++ % u.length ], { credentials: 'same-origin' } ).catch( () => {} ); }, ms ); setTimeout( () => clearInterval( id ), sec * 1000 ); }", jsonSerialize( [ variables.base, arguments.paths, arguments.every, arguments.seconds ] ) )
+	}
+
+	/**
+	 * Hide parts of a page with CSS, one rule for each selector so a selector that does not match cannot cancel the others.
+	 */
+	function hide( required any selectors ) {
+		for ( var css in ( isArray( arguments.selectors ) ? arguments.selectors : [ arguments.selectors ] ) ) {
+			variables.jpage.evaluate( "css => { const s = document.createElement( 'style' ); s.textContent = css; document.head.appendChild( s ); }", css & "{visibility:hidden !important}" )
+		}
+	}
+
+	/**
+	 * Hide the card of the page that contains this label.
+	 */
+	function hideCard( required string label ) {
+		variables.jpage.evaluate( "l => { document.querySelectorAll( '.card' ).forEach( c => { if ( c.offsetParent && c.textContent.includes( l ) ) { c.style.visibility = 'hidden'; } } ); }", arguments.label )
+	}
+
+	function count( required string selector ) {
+		return variables.jpage.locator( arguments.selector ).count()
+	}
+
+	function shot( required string name ) {
+		variables.page.screenshot( variables.out & "/" & arguments.name & ".png" )
+	}
+
+	/**
+	 * Stop the screencast, write cast.json (the start time and the frames with their stamps) and close the browser.
+	 */
+	function close() {
+		if ( !isNull( variables.cdp ) ) {
+			try { variables.cdp.send( "Page.stopScreencast" ) } catch ( any e ) {}
+			wait( 300 )
+			fileWrite( variables.out & "/cast.json", jsonSerialize( { "t0epoch" : variables.t0 / 1000, "frames" : variables.frames } ) )
+		}
+		variables.pw.close()
+	}
+
+}

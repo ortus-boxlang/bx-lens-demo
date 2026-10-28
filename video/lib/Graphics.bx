@@ -1,0 +1,55 @@
+/**
+ * Draws the graphics of the captions-only video with a headless browser (bx-playwright): the caption strip of every act, with its marker and
+ * the progress dots, and the two animated slides (the opening and the closing one) as frames that ffmpeg turns into video.
+ * The pages are in graphics/ (strip.html and slides.html).
+ */
+class {
+
+	/**
+	 * @out     The folder of the recording, where the strips and the slides are written
+	 * @spec    acts (an array of n and name), of (how many acts), open and close (the seconds of the two slides)
+	 * @strips  True to draw only the strips (the slides stay as they were)
+	 */
+	function render( required string out, required struct spec, boolean stripsOnly = false ) {
+		var shell  = new Shell()
+		var dir    = getDirectoryFromPath( getCurrentTemplatePath() ) & "../graphics/"
+		var launch = { "args" : [ "--no-sandbox", "--allow-file-access-from-files", "--force-device-scale-factor=1" ] }
+		var chrome = getSystemSetting( "CHROMIUM", "" )
+		if ( len( chrome ) ) {
+			launch.executablePath = chrome
+		}
+		var pw   = playwright( "default", { "viewport" : { "width" : 1920, "height" : 124 }, "launchOptions" : launch } )
+		var page = pw.newPage()
+		var jpage = page.getJava()
+
+		// The strips: 0 is the plain strip (no act yet)
+		var acts = [ { "n" : 0, "name" : "" } ]
+		acts.append( arguments.spec.acts, true )
+		for ( var act in acts ) {
+			jpage.navigate( "file://" & dir & "strip.html?n=" & act.n & "&of=" & arguments.spec.of & "&name=" & encodeForURL( act.name ) )
+			page.screenshot( arguments.out & "/strip-" & act.n & ".png" )
+		}
+
+		if ( !arguments.stripsOnly ) {
+			// The slides: seek the animations frame by frame
+			page.setViewport( 1920, 956 )
+			for ( var kind in [ "open", "close" ] ) {
+				var frames = arguments.out & "/slide-" & kind
+				if ( directoryExists( frames ) ) {
+					directoryDelete( frames, true )
+				}
+				directoryCreate( frames, true, true )
+				jpage.navigate( "file://" & dir & "slides.html?m=" & kind )
+				page.wait( 500 )
+				var count = ceiling( arguments.spec[ kind ] * 30 )
+				for ( var i = 0; i < count; i++ ) {
+					page.evaluate( "t => window.__seek( t )", i / 30 )
+					page.screenshot( frames & "/" & numberFormat( i, "00000" ) & ".jpg", { "type" : "jpeg", "quality" : 93 } )
+				}
+				shell.run( [ "ffmpeg", "-v", "error", "-y", "-framerate", "30", "-i", frames & "/%05d.jpg", "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p", arguments.out & "/slide-" & kind & ".mp4" ] )
+			}
+		}
+		pw.close()
+	}
+
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the walkthrough video of the demo from scratch: voice, music, recording, mix.
-# Needs: the demo running (BASE), BoxLang with the bx-audio module, Node.js with Playwright (npm install here), ffmpeg and a Chromium (CHROMIUM).
+# Needs: the demo running (BASE), BoxLang with the bx-audio and bx-playwright modules, ffmpeg and a Chromium (CHROMIUM, or bxplaywright install chromium).
 #   BASE=http://127.0.0.1:8088 CHROMIUM=/path/to/chrome OUT=out ./build.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -15,11 +15,11 @@ echo "2. music (bx-audio synthwave, 48 bars at 92 bpm)"
 
 echo "3. data for the console"
 ./warmup.sh
-node prepare.cjs
+boxlang prepare.bxs
 ./errors.sh
 
 echo "4. recording"
-node record.cjs
+boxlang record.bxs
 
 echo "5. mix"
-node mix.cjs
+boxlang mix.bxs
