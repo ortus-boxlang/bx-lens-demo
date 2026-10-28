@@ -21,6 +21,7 @@ const dir = path.join( __dirname, 'graphics' );
 		await page.goto( 'file://' + path.join( dir, 'strip.html' ) + '?n=' + a.n + '&of=' + spec.of + '&name=' + encodeURIComponent( a.name ) );
 		await page.screenshot( { path: path.join( OUT, 'strip-' + a.n + '.png' ) } );
 	}
+	if ( process.env.STRIPS_ONLY ) { await browser.close(); return; }
 	// The slides: seek the animations frame by frame
 	await page.setViewportSize( { width: 1920, height: 956 } );
 	for ( const m of [ 'open', 'close' ] ) {

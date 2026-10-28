@@ -35,7 +35,7 @@ cast.frames.forEach( ( fr, i ) => {
 list.push( `file 'frames/${ cast.frames[ cast.frames.length - 1 ].f }'` );
 fs.writeFileSync( path.join( OUT, 'frames.txt' ), list.join( '\n' ) );
 const screen = path.join( OUT, 'screen.mp4' );
-run( 'ffmpeg', [ '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join( OUT, 'frames.txt' ), '-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '12', screen ], { cwd: OUT } );
+if ( !( process.env.REUSE && fs.existsSync( screen ) ) ) { run( 'ffmpeg', [ '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join( OUT, 'frames.txt' ), '-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '12', screen ], { cwd: OUT } ); }
 const startB = 1.0;                   // recorder time of the first picture we keep: the opening card is up
 const vStart = startB + delta;        // video time of it
 const shift = startB;
@@ -142,7 +142,7 @@ if ( VOICE ) {
 	f.push( `[${ cur }]ass=captions.ass,format=yuv420p[vout]` );
 }
 const mp4 = path.join( OUT, VOICE ? 'bxlens-demo-walkthrough.mp4' : 'bxlens-demo-walkthrough-captions.mp4' );
-run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ], { cwd: OUT } );  // run in OUT so the captions file is found by its plain name, with nothing to escape
+run( 'ffmpeg', [ '-v', 'error', '-y', ...inputs, '-filter_complex', f.join( ';' ), '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', process.env.REUSE ? 'faster' : 'medium', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', mp4 ], { cwd: OUT } );  // run in OUT so the captions file is found by its plain name, with nothing to escape
 run( 'ffmpeg', [ '-v', 'error', '-y', '-ss', '48', '-i', mp4, '-frames:v', '1', path.join( OUT, 'poster.jpg' ) ] );
 
 // 5. What the licenses ask for
