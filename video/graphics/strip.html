@@ -1,0 +1,17 @@
+<!doctype html><meta charset=utf-8>
+<!-- The caption strip under the picture, with the act marker and the progress dots: strip.html?n=3&name=Requests%2C%20in%20depth&of=11 -->
+<style>
+:root{--c1:#00d4ff;--c2:#1af5b0}
+*{box-sizing:border-box}
+body{margin:0;width:1920px;height:124px;background:linear-gradient(180deg,#0a1626,#060f1b);font-family:Inter,system-ui,sans-serif;color:#fff;position:relative;overflow:hidden}
+body:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,transparent,var(--c1),var(--c2),transparent)}
+.tag{position:absolute;left:34px;top:50%;transform:translateY(-50%);font-size:15px;letter-spacing:.14em;font-weight:700;color:#7d8aa8;text-transform:uppercase;line-height:1.5;border-left:3px solid;border-image:linear-gradient(var(--c1),var(--c2)) 1;padding-left:12px;max-width:230px}
+.tag b{display:block;color:#fff;font-size:20px;letter-spacing:.06em}
+.dots{position:absolute;right:34px;top:50%;transform:translateY(-50%);display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;width:130px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#26344d}
+.dots i.on{background:linear-gradient(90deg,var(--c1),var(--c2));box-shadow:0 0 10px var(--c2)}
+</style>
+<body><script>
+const q=new URLSearchParams(location.search);const n=+q.get('n'),of=+q.get('of')||11,name=q.get('name')||'';
+if(n>0)document.body.innerHTML=`<div class=tag><b>${n} of ${of}</b>${name.replace(/</g,'&lt;')}</div><div class=dots>${Array.from({length:of},(_,i)=>'<i class="'+(i<n?'on':'')+'"></i>').join('')}</div>`;
+</script>

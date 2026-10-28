@@ -1,0 +1,56 @@
+<!doctype html><meta charset=utf-8>
+<!-- The opening and the closing slide of the walkthrough. graphics.cjs seeks the animations frame by frame: slides.html?m=open|close -->
+<style>
+:root{--c1:#00d4ff;--c2:#1af5b0}
+*{box-sizing:border-box}
+body{margin:0;width:1920px;height:956px;background:#050c17;font-family:Inter,system-ui,sans-serif;color:#fff;overflow:hidden;position:relative}
+.acc{background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;color:transparent;font-weight:800}
+.slide{position:absolute;inset:0;background:radial-gradient(1100px 800px at 50% 42%,#0f3a5c 0%,#0a1d33 38%,#050c17 75%);animation:bgIn 1.2s ease-out both}
+@keyframes bgIn{from{opacity:0}to{opacity:1}}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:radial-gradient(ellipse at 50% 45%,#000 0,transparent 70%);mask-image:radial-gradient(ellipse at 50% 45%,#000 0,transparent 70%)}
+.rays{position:absolute;left:50%;top:41%;width:2400px;height:2400px;margin:-1200px 0 0 -1200px;animation:spin 60s linear infinite;background:conic-gradient(from 0deg,rgba(0,212,255,0),rgba(0,212,255,.10) 3%,rgba(0,212,255,0) 6%,rgba(26,245,176,.08) 12%,rgba(26,245,176,0) 15%,rgba(0,212,255,.10) 22%,rgba(0,212,255,0) 25%,rgba(26,245,176,.09) 33%,rgba(26,245,176,0) 36%,rgba(0,212,255,.10) 44%,rgba(0,212,255,0) 47%,rgba(26,245,176,.08) 55%,rgba(26,245,176,0) 58%,rgba(0,212,255,.10) 66%,rgba(0,212,255,0) 69%,rgba(26,245,176,.09) 77%,rgba(26,245,176,0) 80%,rgba(0,212,255,.10) 88%,rgba(0,212,255,0) 91%);-webkit-mask-image:radial-gradient(circle,#000 0,transparent 55%);mask-image:radial-gradient(circle,#000 0,transparent 55%)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ring{position:absolute;left:50%;border-radius:50%;border:2px solid rgba(0,212,255,.25);animation:ringIn 2s cubic-bezier(.2,.8,.2,1) both,ringPulse 4s ease-in-out 2.2s infinite}
+@keyframes ringIn{from{opacity:0;transform:translate(-50%,-50%) scale(.35)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes ringPulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.035)}}
+.icon{position:absolute;left:50%;filter:drop-shadow(0 0 40px rgba(0,230,200,.55)) drop-shadow(0 0 120px rgba(0,212,255,.35));animation:iconIn 1.5s cubic-bezier(.2,.9,.2,1) .3s both,glow 3.2s ease-in-out 1.9s infinite}
+@keyframes iconIn{from{opacity:0;transform:translateX(-50%) scale(.5) rotate(-30deg)}to{opacity:1;transform:translateX(-50%) scale(1) rotate(0)}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 40px rgba(0,230,200,.55)) drop-shadow(0 0 120px rgba(0,212,255,.35))}50%{filter:drop-shadow(0 0 70px rgba(0,240,210,.85)) drop-shadow(0 0 180px rgba(0,212,255,.55))}}
+.word{position:absolute;left:0;right:0;text-align:center;font-weight:800;letter-spacing:-.02em;animation:rise 1.1s cubic-bezier(.2,.9,.2,1) 1.3s both}
+@keyframes rise{from{opacity:0;transform:translateY(60px)}to{opacity:1;transform:none}}
+.tagline{position:absolute;left:0;right:0;text-align:center;color:#b9c5de}
+.tag1{animation:track 1.6s cubic-bezier(.2,.8,.2,1) 2.3s both}
+@keyframes track{from{opacity:0;letter-spacing:.05em}to{opacity:1;letter-spacing:.34em}}
+.chip{position:absolute;left:50%;border-radius:999px;padding:16px 44px;border:2px solid transparent;background:linear-gradient(#08182a,#08182a) padding-box,linear-gradient(90deg,var(--c1),var(--c2)) border-box;box-shadow:0 0 60px rgba(0,212,255,.35),inset 0 0 40px rgba(0,212,255,.08);white-space:nowrap;animation:pop 1s cubic-bezier(.2,1.3,.3,1) 3.6s both}
+@keyframes pop{from{opacity:0;transform:translateX(-50%) scale(.7)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+.url{font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+.url .dim{color:#fff}
+.credit{position:absolute;left:0;right:0;bottom:26px;display:flex;justify-content:center;align-items:center;gap:16px;color:#8794b3;font-size:24px;animation:fade 1s ease-out 5s both}
+.credit img{height:40px}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55))}
+/* the closing slide: the address is the hero, and it is wiped in */
+.big{position:absolute;left:0;right:0;text-align:center;font-size:196px;text-shadow:0 0 90px rgba(0,212,255,.45);animation:wipe 1.6s cubic-bezier(.6,0,.2,1) 1.6s both}
+@keyframes wipe{from{clip-path:inset(0 100% 0 0);opacity:.2}to{clip-path:inset(0 0 0 0);opacity:1}}
+.say{position:absolute;left:0;right:0;text-align:center;font-size:54px;font-weight:600;color:#dbe4f7;animation:rise 1.1s cubic-bezier(.2,.9,.2,1) 3.4s both}
+.eyebrow{animation:track2 1.4s ease-out 1s both}
+@keyframes track2{from{opacity:0;letter-spacing:.1em}to{opacity:1;letter-spacing:.34em}}
+</style>
+<body><div id=root></div>
+<script>
+const m=new URLSearchParams(location.search).get('m');
+const rings=(top,sizes)=>sizes.map((s,i)=>`<div class=ring style="top:${top}%;width:${s}px;height:${s}px;animation-delay:${.15*i}s,${2.2+.4*i}s;${i?'border-color:rgba(26,245,176,.'+(i==1?'14':'08')+')':''}"></div>`).join('');
+if(m==='open'){root.innerHTML=`<div class=slide><div class=grid></div><div class=rays></div>${rings(41,[700,1000,1400])}
+<img class=icon src=icon.png style="top:60px;width:300px">
+<div class=word style="top:385px;font-size:178px"><span class=acc>Bx</span>Lens</div>
+<div class="tagline tag1" style="top:610px;font-size:40px;text-transform:uppercase">Observability for BoxLang</div>
+<div class=chip style="top:695px"><span class=url style="font-size:56px"><span class=acc>bxlens</span><span class=dim>.boxlang.io</span></span></div>
+<div class=credit>Music by <img src=bxaudio.png> bxaudio.boxlang.io</div><div class=vig></div></div>`}
+if(m==='close'){root.innerHTML=`<div class=slide><div class=grid></div><div class=rays></div>${rings(46,[820,1200])}
+<img class=icon src=icon.png style="top:40px;width:170px">
+<div class="tagline eyebrow" style="top:240px;font-size:34px;text-transform:uppercase;color:#8fa0c4">See the cause</div>
+<div class="big url" style="top:300px"><span class=acc>bxlens</span><span class=dim>.boxlang.io</span></div>
+<div class=say style="top:610px">Find the cause, not just the symptom.</div>
+<div class=credit>Music by <img src=bxaudio.png> bxaudio.boxlang.io</div><div class=vig></div></div>`}
+window.__seek=t=>document.getAnimations().forEach(a=>{a.pause();a.currentTime=t*1000});
+</script>
