@@ -1,6 +1,6 @@
 # The walkthrough video
 
-A 4 to 5 minute video of the demo: the BxLens bar first, then the console, then the scenarios. The voice and the music are made with [bx-audio](https://bxaudio.boxlang.io) (a Piper voice and the synthwave piece). The screen is recorded in a headless browser, so the same video can be built again after the demo or the narration changes.
+An 11 to 13 minute video of the demo, in acts: the BxLens bar, the console at a glance, every part of a request (also a ColdBox one), the problem pages, logs, the machine, the JVM, AI observability, Lensy, many servers, and the three tickets. It ends on a full screen bxlens.boxlang.io card with the bxAudio credit. The voice and the music are made with [bx-audio](https://bxaudio.boxlang.io) (a Piper voice and the synthwave piece). The screen is recorded in a headless browser, so the same video can be built again after the demo or the narration changes.
 
 ## How it works
 
@@ -30,6 +30,10 @@ The result is `out/bxlens-demo-walkthrough.mp4`, the `.srt` captions, a poster a
 
 Without the voice-over: `VOICE=0 OUT=out node mix.cjs` after a build writes `bxlens-demo-walkthrough-captions.mp4`, the same picture with the music only and the narration as captions in a strip under the picture (the spoken segments are still used for the timing).
 
+## Lensy in the video
+
+There is no model in the recording environment, so Lensy runs on bx-ai's **mock provider** (`ai.provider` is `mock` in the BxLens settings of the recording server). The answers are scripted, the tools are real: Lensy calls `diagnose`, `errors`, `executors`, `requests` and `requestDetail` on the live server. `lensy-script.json` holds the scripts, chosen by a word of the question. The mock provider has no script by itself, so the recording server has a small change in `bx-ai/models/providers/MockService.bx` (`nextScriptedResponse` reads `/srv/demo/lensy-script.json`, counts the tool results since the last question to find the step, and replaces `$id` in a call by the first request id of the last tool result). That change is not part of this repository. The video says on screen that the answers are scripted.
+
 ## Changing it
 
 * **The words or the voice**: edit `narration.json` and run `build.sh` again. The recording follows the length of the voice, so it is recorded again too.
@@ -39,5 +43,6 @@ Without the voice-over: `VOICE=0 OUT=out node mix.cjs` after a build writes `bxl
 
 ## Notes
 
+* The artwork in `assets/` is the official bxAudio logo from the ortus-artwork repository.
 * The video is recorded at 1920 by 1080. `lib.cjs` hides two things on screen that belong to the recording machine and not to the demo: the mounts and JVM flags on the System page, and the volume of the first server in the Overview table.
 * The console redraws its lists every second, so rows are clicked with `pick`, which clicks the element itself. Selectors use `:visible` because the console keeps every page in the document.

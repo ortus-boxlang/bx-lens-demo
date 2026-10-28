@@ -18,17 +18,31 @@ function overlay() {
 		.card h1{font-size:84px;margin:0;font-weight:700;letter-spacing:-.01em}
 		.card h1 b{background:linear-gradient(90deg,#00d4ff,#1af5b0);-webkit-background-clip:text;color:transparent}
 		.card p{font-size:32px;color:#aeb5cf;margin:0;max-width:1200px;line-height:1.4}
+		.card.big h1{font-size:128px}
+		.card img.lead{height:150px;margin-bottom:8px}
+		.card .foot{position:absolute;bottom:54px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:18px;font-size:26px;color:#aeb5cf}
+		.card .foot img{height:46px}
+		.bug{position:fixed;right:26px;bottom:22px;display:none;align-items:center;gap:12px;padding:8px 16px;border-radius:12px;background:rgba(6,15,27,.82);color:#aeb5cf;font:18px system-ui,sans-serif;border:1px solid rgba(255,255,255,.12)}
+		.bug.on{display:flex}
+		.bug img{height:30px}
 		.cur{position:fixed;width:24px;height:24px;margin:-4px 0 0 -4px;border-radius:50%;background:rgba(0,219,255,.9);border:3px solid #fff;box-shadow:0 0 0 4px rgba(0,0,0,.25);left:-60px;top:-60px;transition:none}
 		.rip{position:fixed;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:4px solid #1af5b0;animation:r .6s ease-out forwards}
 		@keyframes r{to{transform:scale(5);opacity:0}}
-	</style><div class="card"></div><div class="cur"></div>`;
-	const card = root.querySelector( '.card' ), cur = root.querySelector( '.cur' );
+	</style><div class="card"></div><div class="bug"></div><div class="cur"></div>`;
+	const card = root.querySelector( '.card' ), cur = root.querySelector( '.cur' ), bug = root.querySelector( '.bug' );
 	const esc = s => String( s ).replace( /[&<>]/g, c => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ c ] ) );
 	window.__render = () => {
 		let k = null;
 		try { k = JSON.parse( sessionStorage.getItem( 'card' ) || 'null' ); } catch ( e ) {}
-		if ( k ) { card.innerHTML = '<h1>' + k.t + '</h1><p>' + esc( k.s || '' ) + '</p>'; }
+		if ( k ) {
+			card.innerHTML = ( k.img ? '<img class="lead" src="' + k.img + '">' : '' ) + '<h1>' + k.t + '</h1><p>' + esc( k.s || '' ) + '</p>' + ( k.foot ? '<div class="foot">' + k.foot + '</div>' : '' );
+			card.classList.toggle( 'big', !!k.big );
+		}
 		card.classList.toggle( 'on', !!k );
+		let b = null;
+		try { b = JSON.parse( sessionStorage.getItem( 'bug' ) || 'null' ); } catch ( e ) {}
+		if ( b ) { bug.innerHTML = '<span>' + esc( b.s ) + '</span><img src="' + b.img + '">'; }
+		bug.classList.toggle( 'on', !!b );
 	};
 	window.__set = ( key, val ) => { try { sessionStorage.setItem( key, JSON.stringify( val ) ); } catch ( e ) {} window.__render(); };
 	document.addEventListener( 'mousemove', e => { cur.style.left = e.clientX + 'px'; cur.style.top = e.clientY + 'px'; }, true );
@@ -57,6 +71,14 @@ function tidy() {
 		hideText( document.body, /You are on a trial/, { up: '.banner, .trial, [class*=banner]', prop: 'display', val: 'none' } );
 		hideText( document.body, /^\s*Trial\s*·/, { up: 'span, a, button', prop: 'visibility', val: 'hidden' } );
 		hideText( document.body, /\/opt\/claude-code|\/opt\/pw-browsers|\/root\/\.claude/, { up: 'td, div', prop: 'visibility', val: 'hidden' } );
+		// Not a secret, but the home folder and the kernel build name the recording machine: show the usual short forms
+		const w = document.createTreeWalker( document.body, NodeFilter.SHOW_TEXT );
+		for ( let n; ( n = w.nextNode() ); ) {
+			const v = n.nodeValue;
+			if ( /\/root\/|-fc-v\d+/.test( v ) ) { n.nodeValue = v.replace( /\/root\//g, '~/' ).replace( /-fc-v\d+/g, '' ); }
+		}
+		hideText( document.body, /^\s*Physical disks/, { up: '.card', prop: 'display', val: 'none' } );
+		hideText( document.body, /Other volumes/, { up: 'button', prop: 'display', val: 'none' } );
 	}, 250 );
 }
 
@@ -116,6 +138,7 @@ async function open( o ) {
 			await page.mouse.click( b2.x + b2.width / 2, b2.y + b2.height / 2 );
 		}
 	};
+	const tabOf = name => page.locator( '.ptabs2 > *:visible, .tab:visible, [role=tab]:visible', { hasText: new RegExp( `^\\s*${ name }\\b` ) } ).first();
 	const nav = name => page.locator( '.side .nav', { hasText: new RegExp( `^\\s*${ name }\\b` ) } ).first();
 
 	const t = {
@@ -145,6 +168,15 @@ async function open( o ) {
 			await glide( page.locator( '#bxlens .tab', { hasText: new RegExp( `^\\s*${ name }\\b` ) } ).first() );
 			await wait( 600 );
 		},
+		/** A small credit in the corner of the picture, or none. */
+		bug: async o2 => { await page.evaluate( v => window.__set( 'bug', v ), o2 || null ).catch( () => {} ); },
+		/** Show a tab of the page (the console pages and the JVM, System and AI pages have them). */
+		tab: async name => { await glide( tabOf( name ) ); await wait( 900 ); },
+		/** Keep some load going on the demo for a while, without leaving the page: the urls are called one after another every few hundred ms. */
+		load: async ( urls, every, seconds ) => page.evaluate( ( [ b, u, ms, sec ] ) => {
+			let i = 0; const id = setInterval( () => { fetch( b + u[ i++ % u.length ], { credentials: 'same-origin' } ).catch( () => {} ); }, ms );
+			setTimeout( () => clearInterval( id ), sec * 1000 );
+		}, [ o.base, urls, every, seconds ] ),
 		nav: async name => { await glide( nav( name ) ); await wait( 800 ); },
 		click: async s => { await glide( loc( s ) ); await wait( 500 ); },
 		/** Click a row of a list the console redraws every second: move the cursor to it, then click the element itself, so the click cannot be lost in a redraw. */

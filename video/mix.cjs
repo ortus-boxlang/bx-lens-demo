@@ -59,7 +59,7 @@ const clock = x => { const ms = Math.round( x * 1000 ); const p = ( n, w = 2 ) =
 let srt = '', n = 1;
 for ( const s of segs ) {
 	const text = narration.segments.find( x => x.id === s.id ).text;
-	const sentences = text.match( /[^.?!]+[.?!]+/g ) || [ text ];
+	const sentences = text.split( /(?<=[.?!])\s+/ );  // after the mark and a space, so a web address stays whole
 	const chars = sentences.reduce( ( a, x ) => a + x.length, 0 );
 	let at = s.voiceAt - shift;
 	for ( const sentence of sentences ) {

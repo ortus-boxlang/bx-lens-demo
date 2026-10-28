@@ -1,0 +1,10 @@
+[
+ {"match":"diagnose","steps":[
+   {"toolCalls":[{"name":"diagnose","arguments":{}}]},
+   {"toolCalls":[{"name":"errors","arguments":{"limit":5}},{"name":"executors","arguments":{"onlyProblems":true}}]},
+   "The server is critical. I found three problems. First, a deadlock: demo-deadlock-A and demo-deadlock-B each hold the lock the other one needs. It will not clear by itself, so take both locks in the same order, and restart to free them. Second, an executor: every thread of demo-pool is busy and tasks are queued behind them. Raise the maximum pool size, or look at what the tasks wait for with threadStack. Third, a datasource: all 5 connections of demo are in use. Separately, the most frequent error is IntegrationError, a scheduled task that cannot reach api.prices.test."]},
+ {"match":"checkout","steps":[
+   {"toolCalls":[{"name":"requests","arguments":{"limit":3,"urlContains":"checkout"}}]},
+   {"toolCalls":[{"name":"requestDetail","arguments":{"id":"$id"}}]},
+   "The latest checkout request failed with a DatabaseException: Unable to open connection. It gave up after about two seconds because no connection was free. Every connection of the demo datasource is held, which matches the datasource finding of the diagnosis. Return the connections, keep transactions short, and the checkout works again."]}
+]
