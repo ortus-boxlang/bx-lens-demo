@@ -1,4 +1,7 @@
 {
+	"mappings": {
+		"/demo": "${user-dir}"
+	},
 	"modules": {
 		"mail": {
 			"settings": {

@@ -6,3 +6,4 @@ drop/*.zip
 /app/boxlang_modules/
 # ColdBox, TestBox and modules, installed by box install (bx-cli) from app/cbApp/box.json
 app/cbApp/lib/
+.boxlang/**
